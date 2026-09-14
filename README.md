@@ -1,6 +1,6 @@
-# Dam Break Inundation Modeling & Risk Assessment Platform
+# Dam Break Inundation Modelling Using Hydrodynamic Modelling of any River
 
-> **Smart India Hackathon (SIH 2024 / Problem Statement 26161)**  
+> **Smart India Hackathon (Problem Statement SIH26161)**  
 > *Hydrodynamic Dam Breach Simulation, 2D Diffusive-Wave Flood Wave Routing, WebGL 3D Visualization, Live Weather Integration, and AI Disaster Copilot.*
 
 ---
@@ -176,5 +176,15 @@ The platform includes a comprehensive, production-grade documentation suite:
 
 ## License & Attribution
 
-Developed for **Smart India Hackathon (SIH 2024 / Problem Statement 26161)**.  
+Developed for **Smart India Hackathon.  
 Geospatial data sourced from National Dam Safety Authority (NDSA), Central Water Commission (CWC), Copernicus Open Access Hub, OpenTopography, HydroSHEDS, and Open-Meteo.
+
+
+---
+
+## Author 
+
+
+LOHITH G.
+
+
