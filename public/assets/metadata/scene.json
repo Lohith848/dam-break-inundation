@@ -1,7 +1,7 @@
 {
   "name": "Master Digital Twin Scene",
   "version": "1.0.0",
-  "model_url": "/public/assets/master/scene.glb",
+  "model_url": "/assets/master/scene.glb",
   "auto_compute_bounds": true,
   "camera_presets": {
     "overview": {
