@@ -1,0 +1,51 @@
+# ==============================================================================
+# Dam Break Inundation Platform — .gitignore
+# ==============================================================================
+
+# --- OS / editor junk ---------------------------------------------------------
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# --- Python -------------------------------------------------------------------
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+venv/
+
+# --- Node / build outputs -----------------------------------------------------
+node_modules/
+dist/
+build/
+.cache/
+*.log
+
+# --- Secrets & environment variables (NEVER commit real keys) -----------------
+.env
+.env.*
+*.env
+# ...but keep the committed templates:
+!**/.env.example
+
+# --- Heavy binary datasets kept local (see datasets/README.md) ----------------
+*.tif
+*.tiff
+datasets/dem/cache/
+
+# --- Large reference PDFs (see docs/references/README.md for sources) ---------
+docs/references/*.pdf
+
+# --- Raw local asset exports (compressed master lives in public/assets/master) -
+/scene.glb
+*.glb
+!public/assets/master/scene.glb
+
+# --- Dev-only symlink shim: real assets live in /public, served by the backend -
+frontend/public
+
+# Heavy binary model assets are kept local; swap via frontend/config/assets.js
+public/assets/models/**
+!public/assets/models/**/
+!public/assets/models/**/README.md

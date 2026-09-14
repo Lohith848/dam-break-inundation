@@ -1,0 +1,78 @@
+{
+  "type": "FeatureCollection",
+  "name": "mettur_river",
+  "crs": {
+    "type": "name",
+    "properties": {
+      "name": "urn:ogc:def:crs:OGC:1.3:CRS84"
+    }
+  },
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "river": "Kaveri",
+        "reach": "Mettur Dam to Bhavani Confluence",
+        "length_km": 44.8,
+        "avg_slope": 0.0011,
+        "manning_n": 0.035,
+        "bankfull_width_m": 320,
+        "upstream_dam": "Mettur Dam",
+        "district": "Salem / Erode"
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            77.8015,
+            11.8025
+          ],
+          [
+            77.8,
+            11.79
+          ],
+          [
+            77.795,
+            11.77
+          ],
+          [
+            77.788,
+            11.745
+          ],
+          [
+            77.782,
+            11.71
+          ],
+          [
+            77.778,
+            11.67
+          ],
+          [
+            77.775,
+            11.63
+          ],
+          [
+            77.772,
+            11.59
+          ],
+          [
+            77.776,
+            11.54
+          ],
+          [
+            77.785,
+            11.49
+          ],
+          [
+            77.795,
+            11.45
+          ],
+          [
+            77.805,
+            11.425
+          ]
+        ]
+      }
+    }
+  ]
+}

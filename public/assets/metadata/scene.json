@@ -1,0 +1,49 @@
+{
+  "name": "Master Digital Twin Scene",
+  "version": "1.0.0",
+  "model_url": "/public/assets/master/scene.glb",
+  "auto_compute_bounds": true,
+  "camera_presets": {
+    "overview": {
+      "relative_position": { "x": 1.2, "y": 1.0, "z": 1.4 },
+      "relative_target": { "x": 0.0, "y": 0.1, "z": 0.0 },
+      "description": "Full catchment perspective view"
+    },
+    "dam": {
+      "relative_position": { "x": 0.0, "y": 0.5, "z": 0.6 },
+      "relative_target": { "x": 0.0, "y": 0.25, "z": 0.0 },
+      "description": "Close-up of dam structure and spillway"
+    },
+    "valley": {
+      "relative_position": { "x": 0.4, "y": 0.6, "z": 1.3 },
+      "relative_target": { "x": 0.0, "y": 0.05, "z": 0.5 },
+      "description": "Downstream inundation floodway"
+    },
+    "top": {
+      "relative_position": { "x": 0.001, "y": 2.2, "z": 0.001 },
+      "relative_target": { "x": 0.0, "y": 0.0, "z": 0.0 },
+      "description": "Plan view GIS alignment angle"
+    }
+  },
+  "spatial_anchors": {
+    "dam_position": { "x": 0.0, "y": 0.2, "z": 0.0 },
+    "reservoir_position": { "x": 0.0, "y": 0.25, "z": -0.6 },
+    "river_direction": { "x": 0.0, "y": -0.05, "z": 1.0 },
+    "breach_origin": { "x": 0.0, "y": 0.18, "z": 0.05 },
+    "simulation_origin": { "x": 0.0, "y": 0.0, "z": 0.0 }
+  },
+  "default_lighting": {
+    "ambient_intensity": 0.6,
+    "sun_intensity": 1.4,
+    "sun_position": { "x": 150, "y": 220, "z": 120 },
+    "shadow_bias": -0.0005,
+    "shadow_radius": 2.0
+  },
+  "water_layer": {
+    "initial_elevation": 0.02,
+    "opacity": 0.85,
+    "color": "#1565C0",
+    "deep_color": "#0D47A1",
+    "shallow_color": "#4FC3F7"
+  }
+}

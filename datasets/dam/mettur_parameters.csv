@@ -1,0 +1,20 @@
+parameter,value,unit,description
+dam_name,Mettur Dam (Stanley Reservoir),,Name of the hydraulic structure
+river_name,Kaveri (Cauvery),,River on which dam is constructed
+basin,Cauvery Basin,,River basin designation
+state,Tamil Nadu,,State jurisdiction
+district,Salem,,District jurisdiction
+latitude,11.8025,degrees_north,Dam crest centre latitude
+longitude,77.8015,degrees_east,Dam crest centre longitude
+year_completed,1934,year,Commissioning year
+dam_type,Masonry Gravity,,Structural classification
+dam_height_m,65.23,metres,Height of dam above deepest foundation level
+hydraulic_head_m,48.5,metres,Effective hydraulic water head above breach invert
+crest_length_m,1615,metres,Total length of dam crest
+reservoir_volume_m3,2640000000,cubic_metres,Gross storage capacity at FRL (93.47 TMC)
+live_storage_m3,2175000000,cubic_metres,Effective usable storage capacity
+frl_m,242.62,metres_msl,Full Reservoir Level above mean sea level
+mwl_m,244.14,metres_msl,Maximum Water Level
+spillway_capacity_m3_s,13000,m3/s,Design flood discharge capacity of surplus sluices
+default_manning_n,0.038,,Average downstream floodplain Manning roughness coefficient
+failure_mode,overtopping,,Design simulated failure mode (overtopping or piping)

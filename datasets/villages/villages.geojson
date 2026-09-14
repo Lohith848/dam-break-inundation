@@ -1,0 +1,192 @@
+{
+  "type": "FeatureCollection",
+  "name": "downstream_villages",
+  "crs": {
+    "type": "name",
+    "properties": {
+      "name": "urn:ogc:def:crs:OGC:1.3:CRS84"
+    }
+  },
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "village_name": "Mettur Town",
+        "population": 52825,
+        "distance_from_dam_km": 1.5,
+        "ground_elevation_m": 215,
+        "evacuation_priority": "CRITICAL",
+        "district": "Salem"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.805,
+          11.792
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "village_name": "Thangamapuripattanam",
+        "population": 8450,
+        "distance_from_dam_km": 3.8,
+        "ground_elevation_m": 208,
+        "evacuation_priority": "HIGH",
+        "district": "Salem"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.802,
+          11.771
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "village_name": "Navappatti",
+        "population": 4620,
+        "distance_from_dam_km": 6.9,
+        "ground_elevation_m": 198,
+        "evacuation_priority": "HIGH",
+        "district": "Salem"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.795,
+          11.745
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "village_name": "Konur",
+        "population": 6120,
+        "distance_from_dam_km": 10.8,
+        "ground_elevation_m": 192,
+        "evacuation_priority": "HIGH",
+        "district": "Salem"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.79,
+          11.71
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "village_name": "Nerinjipettai",
+        "population": 9850,
+        "distance_from_dam_km": 15.6,
+        "ground_elevation_m": 182,
+        "evacuation_priority": "HIGH",
+        "district": "Salem"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.785,
+          11.668
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "village_name": "Palamalai Foothills",
+        "population": 3150,
+        "distance_from_dam_km": 20.4,
+        "ground_elevation_m": 195,
+        "evacuation_priority": "MEDIUM",
+        "district": "Erode"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.755,
+          11.628
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "village_name": "Ammapettai",
+        "population": 14200,
+        "distance_from_dam_km": 24.8,
+        "ground_elevation_m": 172,
+        "evacuation_priority": "HIGH",
+        "district": "Erode"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.778,
+          11.589
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "village_name": "Singampettai",
+        "population": 5300,
+        "distance_from_dam_km": 31.0,
+        "ground_elevation_m": 165,
+        "evacuation_priority": "MEDIUM",
+        "district": "Erode"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.784,
+          11.538
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "village_name": "Bhavani Town",
+        "population": 41200,
+        "distance_from_dam_km": 41.5,
+        "ground_elevation_m": 155,
+        "evacuation_priority": "HIGH",
+        "district": "Erode"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.792,
+          11.451
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "village_name": "Komarapalayam",
+        "population": 71500,
+        "distance_from_dam_km": 43.2,
+        "ground_elevation_m": 152,
+        "evacuation_priority": "HIGH",
+        "district": "Erode"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.81,
+          11.442
+        ]
+      }
+    }
+  ]
+}
