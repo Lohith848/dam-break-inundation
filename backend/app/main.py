@@ -1014,7 +1014,11 @@ if _sample_data_path.exists():
 # Mounted at /public/assets — paths are defined in frontend/config/assets.js.
 # Place a dam model in public/assets/models/dam/ and set its filename there.
 if _public_assets_path.exists():
-    app.mount("/public/assets", StaticFiles(directory=str(_public_assets_path)), name="public_assets")
+    app.mount(
+    "/assets",
+    StaticFiles(directory=str(_public_assets_path)),
+    name="assets",
+)
 
 if _frontend_path.exists():
     app.mount("/", StaticFiles(directory=str(_frontend_path), html=True), name="frontend")
