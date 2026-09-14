@@ -66,7 +66,7 @@ def _format_of(path: Path) -> Optional[str]:
 
 
 def _to_url(relative: str) -> str:
-    return f"/public/assets/{relative.replace(chr(92), '/')}"
+    return f"/assets/{relative.replace(chr(92), '/')}"
 
 
 def _scan_category(category: str) -> Optional[dict]:
