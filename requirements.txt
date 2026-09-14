@@ -1,0 +1,4 @@
+# Root-level requirements for deployment platforms (Render/Railway/Heroku)
+# that auto-detect a Python app via ./requirements.txt.
+# Actual dependencies live in backend/requirements.txt — edit there only.
+-r backend/requirements.txt
