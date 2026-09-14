@@ -176,7 +176,8 @@ The platform includes a comprehensive, production-grade documentation suite:
 
 ## License & Attribution
 
-Developed for **Smart India Hackathon.  
+Developed for Smart India Hackathon. 
+
 Geospatial data sourced from National Dam Safety Authority (NDSA), Central Water Commission (CWC), Copernicus Open Access Hub, OpenTopography, HydroSHEDS, and Open-Meteo.
 
 
