@@ -1,7 +1,7 @@
 # Dam Break Inundation Modelling Using Hydrodynamic Modelling of any River
 
 > **Smart India Hackathon (Problem Statement SIH26161)**  
-> *Hydrodynamic Dam Breach Simulation, 2D Diffusive-Wave Flood Wave Routing, WebGL 3D Visualization, Live Weather Integration, and AI Disaster Copilot.*
+> *Hydrodynamic Dam Breach Simulation, Diffusive-Wave Flood Wave Routing, WebGL 3D Visualization, Live Weather Integration, and AI Disaster Copilot.*
 
 ---
 
