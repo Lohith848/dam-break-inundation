@@ -186,6 +186,6 @@ Geospatial data sourced from National Dam Safety Authority (NDSA), Central Water
 ## Author 
 
 
-LOHITH G.
+LOHITH G
 
 
