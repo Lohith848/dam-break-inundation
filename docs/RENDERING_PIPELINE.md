@@ -1,4 +1,6 @@
-# Rendering Pipeline — 3D Digital Twin
+# Rendering Pipeline — 3D Digital Twin (Roadmap)
+
+> **Implementation Status Note**: In the current production release, the platform utilizes **Map-Based 2D Hydrodynamic Simulation** (Leaflet 2D GIS). This document specifies the architecture for the upcoming **3D Digital Twin Viewer** scheduled for a post-SIH update. See [`docs/3D_IMPLEMENTATION_ROADMAP.md`](file:///c:/Users/Lohith%20G/Downloads/SIH_WINNING_PROJECT/dam-break-inundation/docs/3D_IMPLEMENTATION_ROADMAP.md) for full implementation details.
 
 ## 1. Pipeline Overview
 The 3D visualization is built on Three.js (r160+) using a modular, decoupled architecture:

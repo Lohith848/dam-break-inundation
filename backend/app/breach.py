@@ -164,6 +164,12 @@ def build_breach_hydrograph(
         tf *= info["time_multiplier"]
     tf = max(tf, 1.0)  # guard: instant failure still needs >= 1 s of physics
 
+    # MacDonald & Langridge-Monopolis (1984) comparative embankment erosion volume
+    v_eroded_m3 = 0.0261 * ((volume_m3 * height_m) ** 0.77)
+
+    # Theoretical maximum Torricelli breach exit velocity v = sqrt(2 * g * H)
+    v_breach_ms = math.sqrt(2.0 * 9.81 * height_m)
+
     t_rise = tf
     t_fall = 2 * tf
     t_total = t_rise + t_fall
@@ -180,6 +186,10 @@ def build_breach_hydrograph(
         "peak_outflow_cms": qp,
         "breach_width_m": b,
         "breach_formation_time_s": tf,
+        "breach_formation_time_min": round(tf / 60.0, 1),
+        "eroded_volume_m3": round(v_eroded_m3, 1),
+        "breach_velocity_ms": round(v_breach_ms, 2),
+        "unit_discharge_m2s": round(qp / max(b, 1.0), 2),
         "times_s": times,
         "discharge_cms": discharge,
     }

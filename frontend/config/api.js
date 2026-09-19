@@ -3,9 +3,25 @@
  * Central API configuration
  */
 
-const API_BASE =
-  import.meta.env.VITE_API_URL?.replace(/\/+$/, "") ||
-  "http://localhost:8000";
+const API_BASE = (() => {
+  if (typeof window !== "undefined" && window.__API_BASE__) {
+    return String(window.__API_BASE__).replace(/\/+$/, "");
+  }
+  if (typeof import.meta !== "undefined" && import.meta?.env?.VITE_API_URL) {
+    return String(import.meta.env.VITE_API_URL).replace(/\/+$/, "");
+  }
+  if (typeof window !== "undefined" && window.location) {
+    const { origin, protocol, port } = window.location;
+    if (port === "5173") {
+      // In Vite dev server, requests are proxied directly to backend
+      return "";
+    }
+    if (protocol === "http:" || protocol === "https:") {
+      return origin;
+    }
+  }
+  return "http://localhost:8000";
+})();
 
 export { API_BASE };
 

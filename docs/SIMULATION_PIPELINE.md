@@ -20,14 +20,16 @@ $$u = \frac{1}{n} R^{2/3} S_{fx}^{1/2}, \quad v = \frac{1}{n} R^{2/3} S_{fy}^{1/
 ## 2. The Four Failure Modes
 Every failure mode uses the identical hydrodynamic conservation solver while modeling distinct initiation kinetics:
 
-| Failure Mode | Physical Mechanism | Outflow Characteristics | Visual Behavior in 3D Twin |
+| Failure Mode | Physical Mechanism | Outflow Characteristics | Inundation & Wavefront Characteristics |
 |---|---|---|---|
-| **Overtopping** | Extreme inflow exceeds crest; headcut erosion advances from downstream toe upward. | Prolonged hydrograph with delayed peak; slower formation time. | Water sheets spill over crest before breach widening. |
-| **Piping (Internal Erosion)** | High hydraulic gradient causes backward conduit erosion through embankment core. | Moderate formation time; sediment-laden early seepage. | Concentrated bottom jet at dam toe before crest collapse. |
-| **Structural Collapse** | Concrete monolith sliding, overturn, or sudden shear wall rupture. | Immediate, violent peak outflow discharge. | Sudden monolith displacement with immediate shockwave surge. |
-| **Earthquake / Seismic** | Ground motion causes foundation liquefaction, crest settlement, or transverse cracking. | Rapid breach formation following seismic shaking. | Ground motion tremors and structural cracking preceding flood wave. |
+| **Overtopping** | Extreme inflow exceeds crest; headcut erosion advances from downstream toe upward. | Prolonged hydrograph with delayed peak; slower formation time. | Gradual, wide downstream water advance with prolonged inundation duration. *(3D: Overtopping sheet spilling over crest)* |
+| **Piping (Internal Erosion)** | High hydraulic gradient causes backward conduit erosion through embankment core. | Moderate formation time; sediment-laden early seepage. | Concentrated flood wave issuing from base, accelerating rapidly into main river reach. *(3D: Bottom jet at dam toe)* |
+| **Structural Collapse** | Concrete monolith sliding, overturn, or sudden shear wall rupture. | Immediate, violent peak outflow discharge. | Sudden, high-energy surge wave traveling with steep wavefront gradient downstream. *(3D: Monolith displacement and shockwave)* |
+| **Earthquake / Seismic** | Ground motion causes foundation liquefaction, crest settlement, or transverse cracking. | Rapid breach formation following seismic shaking. | Rapid multidirectional inundation pulse overwhelming proximate settlements. *(3D: Seismic ground motion tremors)* |
 
 ## 3. Zero-Fabrication Rule
 - Inundation contours and depths are derived cell-by-cell from `depth_grids[t][r][c]`.
 - Arrival times represent the exact numerical timestep where water depth $h > 0.05\text{ m}$.
-- If velocity grids are absent in a simulation run, the system honestly falls back to depth with a clear indicator rather than fabricating synthetic velocity vectors.
+- Velocity grids are computed directly from unit-discharge conservation equations ($V = \sqrt{q_x^2 + q_y^2} / h$), never from procedural approximations.
+- Smooth GIS vector contours are topologically unified from raster shapes (`rasterio` + `shapely`) without polar angle sorting artifacts.
+

@@ -64,7 +64,7 @@ def test_discovery_finds_placed_model(tmp_path):
         assert result["dam"] is not None
         assert result["dam"]["file"].endswith("test_probe_model.glb")
         assert result["dam"]["format"] == "glb"
-        assert result["dam"]["url"].startswith("/public/assets/")
+        assert result["dam"]["url"].startswith("/assets/")
     finally:
         os.remove(probe)
 

@@ -19,9 +19,11 @@ Base URL: `http://localhost:8000`
 | `GET` | `/dams` | Search 6,644 national dams database |
 | `GET` | `/rivers` | List rivers and associated dams |
 | `GET` | `/failure-modes` | List supported failure mode constants |
+| `POST` | `/ai/chat` | Context-aware AI Copilot query (Groq LPU) |
 | `POST` | `/ai/copilot` | Disaster risk assessment query via Groq LLM |
-| `GET` | `/ai/status` | Check Groq AI key status |
-| `POST` | `/export/pdf` | Generate downloadable disaster assessment PDF report |
+| `GET` | `/ai/status` | Check Groq AI key and model availability |
+| `POST` | `/report/pdf` | Generate official CWC 13-section disaster report PDF |
+| `POST` | `/export/pdf` | Legacy endpoint for disaster assessment PDF report |
 
 ---
 
@@ -201,9 +203,44 @@ Retrieves live rainfall intensity from Open-Meteo API.
 
 ---
 
-### 5. `POST /export/pdf`
+---
 
-Generates an executive disaster risk report in PDF format.
+### 5. `POST /report/pdf`
 
-**Request Body**: Standard simulation result dictionary.
-**Response**: `application/pdf` binary download stream (`disaster_report_mettur.pdf`).
+Generates an official 13-section CWC/NDMA government dam break flood assessment report in PDF format with high-resolution discharge hydrograph plots.
+
+**Request Body**:
+```json
+{
+  "simulation_id": "sim_20260914_001"
+}
+```
+**Response**: `application/pdf` binary download stream (`dam_break_report_Mettur_Dam.pdf`).
+
+---
+
+### 6. `POST /ai/chat`
+
+Context-bounded, hydraulic-engineering AI disaster copilot query powered by Groq LPU inference. Injects dam profile, breach parameters, physical hazard thresholds ($D \times V > 1.5\text{ m}^2/\text{s}$), and downstream settlement arrival times.
+
+**Request Body**:
+```json
+{
+  "message": "What is the peak outflow and which village is inundated first?",
+  "simulation_id": "sim_20260914_001",
+  "dam_context": {
+    "name": "Mettur Dam",
+    "height_m": 65.23,
+    "volume_m3": 2640000000
+  }
+}
+```
+**Response**:
+```json
+{
+  "response": "Under the selected piping failure scenario, peak outflow reaches 14,250 m³/s. Settlement Alpha is inundated first at T+35 minutes with peak water depth of 4.2m...",
+  "model": "openai/gpt-oss-120b",
+  "source": "groq_api"
+}
+```
+

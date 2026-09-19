@@ -43,32 +43,35 @@ class FailureMode(str, Enum):
 FAILURE_MODE_INFO: dict[str, dict] = {
     FailureMode.OVERTOPPING.value: {
         "label": "Overtopping",
-        "description": "Water flows over the dam crest causing erosion.",
-        # Multipliers applied to the base Froehlich (2008) estimates
+        "description": "Water flows over the dam crest causing progressive breach erosion.",
         "time_multiplier": 1.5,    # slow breach formation
         "width_multiplier": 1.3,   # matches Froehlich k0=1.3 for overtopping
-        "auto_breach_width": True, # let the regression compute width (req. 3)
+        "peak_multiplier": 1.15,   # broad crest weir + breach flow
+        "auto_breach_width": True,
     },
     FailureMode.PIPING.value: {
         "label": "Piping (Internal Erosion)",
-        "description": "Internal seepage gradually erodes the dam.",
+        "description": "Internal seepage gradually erodes an embankment conduit.",
         "time_multiplier": 1.0,    # medium (baseline regression value)
         "width_multiplier": 1.0,   # medium (baseline regression value)
-        "auto_breach_width": False, # UI prefills a medium breach width
+        "peak_multiplier": 1.0,    # baseline orifice discharge
+        "auto_breach_width": False,
     },
     FailureMode.STRUCTURAL.value: {
         "label": "Structural Failure",
-        "description": "Sudden collapse of the dam structure.",
-        "time_multiplier": 0.15,   # near-instant failure
-        "width_multiplier": 2.0,   # large breach width
-        "auto_breach_width": False, # UI prefills a large breach width
+        "description": "Sudden catastrophic collapse of the main dam monoliths/embankment.",
+        "time_multiplier": 0.15,   # near-instant failure (steep shockwave)
+        "width_multiplier": 2.0,   # large catastrophic breach width
+        "peak_multiplier": 1.55,   # massive instantaneous surge
+        "auto_breach_width": False,
     },
     FailureMode.EARTHQUAKE.value: {
         "label": "Earthquake-Induced Failure",
-        "description": "Dam failure triggered by seismic activity.",
+        "description": "Dam failure triggered by seismic ground motion and crest liquefaction.",
         "time_multiplier": 0.3,    # rapid failure
         "width_multiplier": 1.8,   # large breach width
-        "auto_breach_width": False, # UI prefills a large breach width
+        "peak_multiplier": 1.35,   # rapid seismic release
+        "auto_breach_width": False,
     },
 }
 

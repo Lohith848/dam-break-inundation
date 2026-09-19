@@ -1,4 +1,6 @@
-# Camera System — Constrained Engineering Camera
+# Camera System — Constrained Engineering Camera (Roadmap)
+
+> **Implementation Status Note**: In the current production release, the platform utilizes **Map-Based 2D Hydrodynamic Simulation** (Leaflet 2D GIS). This document specifies the constrained camera mechanics for the upcoming **3D Digital Twin Viewer** scheduled for a post-SIH update. See [`docs/3D_IMPLEMENTATION_ROADMAP.md`](file:///c:/Users/Lohith%20G/Downloads/SIH_WINNING_PROJECT/dam-break-inundation/docs/3D_IMPLEMENTATION_ROADMAP.md) for full implementation details.
 
 ## 1. Design Philosophy
 The 3D viewer is an engineering decision-support tool, **not** a free-flight arcade camera. Unconstrained orbit cameras cause catastrophic presentation failures:

@@ -24,13 +24,16 @@ usable for both **emergency planning (Emergency Action Plans)** and
    flooded, time-to-arrival at each downstream point of interest.
 6. Be usable by a non-GIS-expert district disaster-management officer.
 
-### 3. Non-Goals (for the hackathon build)
+### 3. Non-Goals (for the initial hackathon build)
 - Real-time sensor integration / IoT telemetry (future work).
 - Structural / geotechnical breach-initiation prediction (we take dam
   parameters as *given inputs*, we don't predict *whether* it will fail).
 - Certified, litigation-grade hydraulic modelling (that requires calibrated
   HEC-RAS/MIKE 21 studies with surveyed cross-sections — out of scope for a
   36-hour prototype; the deliverable is a decision-support prototype).
+- WebGL 3D Dam Digital Twin (the platform operates in Map-First 2D GIS simulation
+  for deterministic stability and universal accessibility; 3D dam visualization is
+  scheduled for post-SIH update per `docs/3D_IMPLEMENTATION_ROADMAP.md`).
 
 ### 4. Users & Use Cases
 | User | Use case |

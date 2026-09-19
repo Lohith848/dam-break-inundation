@@ -1,24 +1,71 @@
 /**
  * app.js — Main application module (ES Module)
  * =================================================================
- * Wires the Flood3DViewer, sidebar controls, live rainfall, real
- * progress, scenario comparison, PDF export, and 3D toolbar.
+ * Map-Based Dam Break Inundation Platform (SIH Version)
+ * 100% Map-Based GIS Simulation & Analysis
+ * 
+ * Features:
+ * - Clean India startup (Zoom 5, [20.5937, 78.9629])
+ * - River & Dam search with smooth flyTo animation
+ * - Real-time dam-anchored flood simulation
+ * - Independent GIS Map Player (Depth, Velocity, Arrival, Hazard Risk)
+ * - Live Point Probe HUD on cursor inspection
+ * - Downstream settlement impact tracking
+ * - Government-grade PDF Report export (.pdf)
  * =================================================================
  */
 
-import { Flood3DViewer } from "./three_viewer.js";
+// Note: Three.js 3D viewer paused for SIH Map-Only requirement. Files preserved.
+// import { Flood3DViewer } from "./three_viewer.js";
 import { SimulationDashboard } from "./dashboard.js";
 import { API_BASE } from "./config/api.js";
 
-const API = API_BASE; // central config — no hardcoded hosts (see config/api.js)
-const apiBase = API_BASE;
-let ORIGIN_LAT = 11.8025, ORIGIN_LON = 77.8015;
-let map, viewer3D = null, damMarker = null, dashboard = null;
-let S = { river: null, dam: null, rivers: [], dams: [], simResult: null, abort: null, debounce: null, simRunning: false, startTime: 0, lastScenarioParams: null };
+const API = API_BASE;
+let ORIGIN_LAT = 20.5937, ORIGIN_LON = 78.9629; // India geographic center
+let map = null;
+let damMarker = null;
+let reservoirLayer = null;
+let poiMarkersLayer = null;
+let floodCanvasOverlay = null;
+let floodPolygonLayer = null;
+let dashboard = null;
+
+// Global application state
+let S = {
+  river: null,
+  dam: null,
+  rivers: [],
+  dams: [],
+  simResult: null,
+  abort: null,
+  debounce: null,
+  simRunning: false,
+  startTime: 0,
+  lastScenarioParams: null,
+  userEditedBreach: { width: false, time: false },
+};
+
+// Map simulation player state
+let mapPlayer = {
+  frames: [],
+  velocityFrames: [],
+  riskFrames: [],
+  framePolygons: [],
+  arrivalGrid: null,
+  timestepsFormatted: [],
+  snapshotTimes: [],
+  totalFrames: 0,
+  currentFrame: 0,
+  playing: false,
+  speed: 1.0,
+  timer: null,
+  activeLayer: "depth",
+  bounds: null,
+  demBounds: null,
+};
 
 // ---------------------------------------------------------------------------
-// Failure modes — fetched from /failure-modes (backend constants module).
-// Bundled fallback keeps the UI working when the API is unreachable.
+// Failure modes catalog
 // ---------------------------------------------------------------------------
 const FAILURE_MODES_FALLBACK = [
   { value: "overtopping", label: "Overtopping", description: "Water flows over the dam crest causing erosion.",
@@ -31,65 +78,66 @@ const FAILURE_MODES_FALLBACK = [
     defaults: { breach_formation_time_min: 13.5, breach_width_m: 108, auto_breach_width: false } },
 ];
 let FAILURE_MODES = FAILURE_MODES_FALLBACK;
-// Tracks manual edits so mode selection stops overriding user values (req. 4)
-S.userEditedBreach = { width: false, time: false };
 
 // ---------------------------------------------------------------------------
-// Init
+// Initialization
 // ---------------------------------------------------------------------------
 document.addEventListener("DOMContentLoaded", () => {
   initMap();
-  viewer3D = new Flood3DViewer(document.getElementById("threeContainer"));
-  viewer3D.onProbe = onTerrainProbe;
-  viewer3D.onFrameChange = onFrameChange;
 
   const dashContainer = document.getElementById("dashboardContainer");
   if (dashContainer) {
     dashboard = new SimulationDashboard(dashContainer);
-    dashboard.bind(viewer3D);
-    // Tapping the results grid on mobile dismisses the sidebar overlay
-    dashContainer.addEventListener("click", () => {
-      document.getElementById("sidebar")?.classList.remove("mobile-open");
-      document.getElementById("mobileMenuBtn")?.classList.remove("active");
-    });
   }
 
-  setupViewSwitcher();
   setupSidebarLayout();
   setupRiverSearch();
   setupDamSearch();
+  setupDurationPresets();
   setupValidation();
   setupRunButton();
   setupAdvancedToggle();
-  setup3DToolbar();
   setupFailureModes();
-  if (typeof setupAIPanel === 'function') setupAIPanel();
-  else if (typeof window.setupAIPanel === 'function') window.setupAIPanel();
-  loadRivers().then(() => {
-    // Auto-select benchmark dam (Mettur Dam) on initial startup for instant demo
-    fetch(`${API}/dam/TN12HH0005`)
-      .then((r) => r.json())
-      .then((dam) => {
-        if (dam && dam.id) {
-          selectDam(dam);
-        }
-      })
-      .catch(() => {});
-  });
+  setupGisLayerControls();
+  setupMapPlayerControls();
+  setupReportModal();
+
+  if (typeof setupAIPanel === "function") setupAIPanel();
+  else if (typeof window.setupAIPanel === "function") window.setupAIPanel();
+
+  // Startup cleanly: Load river database and prefetch initial dams list
+  loadRivers();
+  loadInitialDams();
 });
 
+// ---------------------------------------------------------------------------
+// Leaflet Map Initialization
+// ---------------------------------------------------------------------------
 function initMap() {
-  map = L.map("map").setView([ORIGIN_LAT - 0.15, ORIGIN_LON], 11);
-  // High-resolution Esri World Imagery satellite basemap
+  const mapEl = document.getElementById("map");
+  if (!mapEl) {
+    console.error("Map container #map not found");
+    return;
+  }
+
+  // India Viewport: Zoom 5, centered over India
+  map = L.map("map", {
+    zoomControl: false,
+    attributionControl: true,
+  }).setView([ORIGIN_LAT, ORIGIN_LON], 5);
+
+  L.control.zoom({ position: "topleft" }).addTo(map);
+
+  // High-resolution Esri Satellite imagery
   L.tileLayer(
     "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
     {
       maxZoom: 18,
-      attribution: "Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community",
+      attribution: "Tiles &copy; Esri &mdash; National Geographic, USGS",
     }
   ).addTo(map);
 
-  // Subtle CartoDB labels overlay for geographical reference
+  // Reference Labels overlay
   L.tileLayer(
     "https://{s}.basemaps.cartocdn.com/rastertiles/voyager_only_labels/{z}/{x}/{y}{r}.png",
     {
@@ -99,27 +147,61 @@ function initMap() {
       opacity: 0.85,
     }
   ).addTo(map);
+
+  poiMarkersLayer = L.layerGroup().addTo(map);
+  floodPolygonLayer = L.geoJSON(null, {
+    style: {
+      color: "#38bdf8",
+      weight: 2,
+      opacity: 0.95,
+      fillColor: "#0284c7",
+      fillOpacity: 0.18,
+    }
+  }).addTo(map);
+
+  // Live Point Probe on Map Hover / Click
+  map.on("mousemove", onMapHover);
+  map.on("click", onMapHover);
+
+  // Periodic size invalidations to ensure full rendering across flexbox containers
+  setTimeout(() => { if (map) map.invalidateSize(); }, 150);
+  setTimeout(() => { if (map) map.invalidateSize(); }, 400);
+  setTimeout(() => { if (map) map.invalidateSize(); }, 1000);
+  window.addEventListener("resize", () => { if (map) map.invalidateSize(); });
 }
 
 // ---------------------------------------------------------------------------
-// View Switcher
+// Duration Presets
 // ---------------------------------------------------------------------------
-function setupViewSwitcher() {
-  const b = { "3d": document.getElementById("btnView3D"), "split": document.getElementById("btnViewSplit"), "2d": document.getElementById("btnView2D") };
-  const ws = document.querySelector(".workspace"), tv = document.getElementById("threeViewport"), lv = document.getElementById("leafletViewport");
-  function sw(m) {
-    Object.values(b).forEach(x => { x.classList.remove("active"); x.setAttribute("aria-selected", "false"); });
-    ws.classList.remove("split-active"); tv.classList.add("hidden-viewport"); lv.classList.add("hidden-viewport");
-    if (m === "3d") { b["3d"].classList.add("active"); tv.classList.remove("hidden-viewport"); }
-    else if (m === "2d") { b["2d"].classList.add("active"); lv.classList.remove("hidden-viewport"); if (map) map.invalidateSize(); }
-    else { b["split"].classList.add("active"); tv.classList.remove("hidden-viewport"); lv.classList.remove("hidden-viewport"); ws.classList.add("split-active"); if (map) map.invalidateSize(); }
-    if (viewer3D) setTimeout(() => viewer3D.onResize(), 50);
-  }
-  b["3d"].onclick = () => sw("3d"); b["split"].onclick = () => sw("split"); b["2d"].onclick = () => sw("2d");
+function setupDurationPresets() {
+  const container = document.getElementById("durationPresets");
+  const input = document.getElementById("simHours");
+  if (!container || !input) return;
+
+  container.addEventListener("click", (e) => {
+    const pill = e.target.closest(".preset-pill");
+    if (!pill) return;
+    const hours = parseFloat(pill.dataset.hours);
+    if (!isNaN(hours)) {
+      input.value = hours;
+      container.querySelectorAll(".preset-pill").forEach((p) => p.classList.remove("active"));
+      pill.classList.add("active");
+      validateAll();
+      if (typeof window.updateAssistantDam === "function") window.updateAssistantDam(S.dam);
+    }
+  });
+
+  input.addEventListener("input", () => {
+    const val = parseFloat(input.value);
+    container.querySelectorAll(".preset-pill").forEach((p) => {
+      p.classList.toggle("active", parseFloat(p.dataset.hours) === val);
+    });
+    if (typeof window.updateAssistantDam === "function") window.updateAssistantDam(S.dam);
+  });
 }
 
 // ---------------------------------------------------------------------------
-// Sidebar Layout — collapse/expand, drag-resize, persistence
+// Sidebar Layout (Collapse / Expand / Drag-Resize)
 // ---------------------------------------------------------------------------
 const SIDEBAR_WIDTH_KEY = "dbim.sidebarWidth";
 const SIDEBAR_COLLAPSED_KEY = "dbim.sidebarCollapsed";
@@ -139,28 +221,20 @@ function setupSidebarLayout() {
 
   const applyCollapsed = (collapsed, persist = true) => {
     sidebar.classList.toggle("collapsed", collapsed);
-    // Workspace flag only drives the expand-chevron visibility
     document.getElementById("workspace")?.classList.toggle("collapsed", collapsed);
     if (persist) localStorage.setItem(SIDEBAR_COLLAPSED_KEY, collapsed ? "1" : "0");
-    setTimeout(() => viewer3D?.onResize(), 270); // after 250ms width transition
+    if (map) setTimeout(() => map.invalidateSize(), 260);
   };
   applyCollapsed(localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === "1", false);
 
   collapseBtn?.addEventListener("click", () => applyCollapsed(true));
   document.getElementById("sidebarExpandBtn")?.addEventListener("click", () => applyCollapsed(false));
-  document.addEventListener("keydown", (e) => {
-    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "b") {
-      e.preventDefault();
-      applyCollapsed(!sidebar.classList.contains("collapsed"));
-    }
-  });
 
   mobileBtn?.addEventListener("click", () => {
     const open = sidebar.classList.toggle("mobile-open");
     mobileBtn.classList.toggle("active", open);
   });
 
-  // Drag-to-resize (disabled while collapsed)
   if (resizer) {
     let dragging = false;
     resizer.addEventListener("pointerdown", (e) => {
@@ -184,22 +258,57 @@ function setupSidebarLayout() {
       document.body.style.userSelect = "";
       const w = sidebar.getBoundingClientRect().width;
       localStorage.setItem(SIDEBAR_WIDTH_KEY, String(Math.round(w)));
-      viewer3D?.onResize();
-    });
-    resizer.addEventListener("dblclick", () => {
-      sidebar.style.removeProperty("--sidebar-w");
-      localStorage.removeItem(SIDEBAR_WIDTH_KEY);
-      viewer3D?.onResize();
+      if (map) map.invalidateSize();
     });
   }
 }
 
 // ---------------------------------------------------------------------------
-// Search Helpers
+// Search Utilities
 // ---------------------------------------------------------------------------
-function fuzzy(q, t) { if (!t || !q) return true; q = q.toLowerCase(); t = t.toLowerCase(); if (t.includes(q)) return true; let i = 0; for (let c of t) { if (c === q[i]) i++; } return i === q.length; }
-function hl(text, q) { if (!q || !text) return text || ""; const i = text.toLowerCase().indexOf(q.toLowerCase()); if (i === -1) return text; return text.slice(0, i) + "<mark>" + text.slice(i, i + q.length) + "</mark>" + text.slice(i + q.length); }
-function navList(list, e, onAct) { const items = list.querySelectorAll(".search-item"), act = list.querySelector(".search-item.active"); let idx = Array.from(items).indexOf(act); if (e.key === "ArrowDown") { e.preventDefault(); if (act) act.classList.remove("active"); idx = Math.min(idx + 1, items.length - 1); items[idx]?.classList.add("active"); items[idx]?.scrollIntoView({ block: "nearest" }); } else if (e.key === "ArrowUp") { e.preventDefault(); if (act) act.classList.remove("active"); idx = Math.max(idx - 1, 0); items[idx]?.classList.add("active"); items[idx]?.scrollIntoView({ block: "nearest" }); } else if (e.key === "Enter") { e.preventDefault(); if (act) onAct(act); } else if (e.key === "Escape") { e.target.blur(); list.classList.remove("open"); } }
+function fuzzy(q, t) {
+  if (!t || !q) return true;
+  q = q.toLowerCase();
+  t = t.toLowerCase();
+  if (t.includes(q)) return true;
+  let i = 0;
+  for (let c of t) {
+    if (c === q[i]) i++;
+  }
+  return i === q.length;
+}
+
+function hl(text, q) {
+  if (!q || !text) return text || "";
+  const i = text.toLowerCase().indexOf(q.toLowerCase());
+  if (i === -1) return text;
+  return text.slice(0, i) + "<mark>" + text.slice(i, i + q.length) + "</mark>" + text.slice(i + q.length);
+}
+
+function navList(list, e, onAct) {
+  const items = list.querySelectorAll(".search-item");
+  const act = list.querySelector(".search-item.active");
+  let idx = Array.from(items).indexOf(act);
+  if (e.key === "ArrowDown") {
+    e.preventDefault();
+    if (act) act.classList.remove("active");
+    idx = Math.min(idx + 1, items.length - 1);
+    items[idx]?.classList.add("active");
+    items[idx]?.scrollIntoView({ block: "nearest" });
+  } else if (e.key === "ArrowUp") {
+    e.preventDefault();
+    if (act) act.classList.remove("active");
+    idx = Math.max(idx - 1, 0);
+    items[idx]?.classList.add("active");
+    items[idx]?.scrollIntoView({ block: "nearest" });
+  } else if (e.key === "Enter") {
+    e.preventDefault();
+    if (act) onAct(act);
+  } else if (e.key === "Escape") {
+    e.target.blur();
+    list.classList.remove("open");
+  }
+}
 
 // ---------------------------------------------------------------------------
 // River Search
@@ -207,55 +316,124 @@ function navList(list, e, onAct) { const items = list.querySelectorAll(".search-
 async function loadRivers() {
   const list = document.getElementById("riverList");
   list.innerHTML = '<div class="search-loading">Loading rivers...</div>';
-  try { const r = await fetch(`${API}/rivers`); const d = await r.json(); S.rivers = (d.rivers || []).filter(r => r.dam_count > 0); document.getElementById("riverCount").textContent = S.rivers.length; list.innerHTML = ""; }
-  catch (e) { list.innerHTML = '<div class="search-empty">Unable to load rivers.<button class="search-retry" onclick="loadRivers()">Retry</button></div>'; }
+  try {
+    const r = await fetch(`${API}/rivers`);
+    const d = await r.json();
+    S.rivers = (d.rivers || [])
+      .filter((r) => r.dam_count > 0 && !r.name.includes("<") && !r.name.includes(">") && r.name.toLowerCase() !== "unknown river")
+      .sort((a, b) => b.dam_count - a.dam_count);
+    const countEl = document.getElementById("riverCount");
+    if (countEl) countEl.textContent = S.rivers.length;
+    renderRivers("");
+  } catch (e) {
+    console.error("Failed to load rivers:", e);
+    list.innerHTML = '<div class="search-empty">Unable to load rivers.<button class="search-retry" onclick="loadRivers()">Retry</button></div>';
+  }
+}
+
+async function loadInitialDams() {
+  const status = document.getElementById("damSelectorStatus");
+  try {
+    const r = await fetch(`${API}/dams?max_results=80`);
+    if (!r.ok) return;
+    const d = await r.json();
+    if (d.dams && d.dams.length && !S.dam && !S.river) {
+      S.dams = d.dams;
+      if (status) status.textContent = d.count || d.dams.length;
+      renderDams(S.dams, "");
+    }
+  } catch (e) {
+    console.warn("Initial dams prefetch:", e);
+  }
 }
 
 function setupRiverSearch() {
-  const input = document.getElementById("riverSearch"), list = document.getElementById("riverList"), clear = document.getElementById("riverClear");
-  input.addEventListener("input", () => { clearTimeout(S.debounce); S.debounce = setTimeout(() => { renderRivers(input.value); list.classList.add("open"); }, 100); });
-  input.addEventListener("focus", () => { renderRivers(input.value); list.classList.add("open"); });
-  input.addEventListener("blur", () => setTimeout(() => list.classList.remove("open"), 200));
+  const input = document.getElementById("riverSearch");
+  const list = document.getElementById("riverList");
+  const clear = document.getElementById("riverClear");
+
+  input.addEventListener("input", () => {
+    clearTimeout(S.debounce);
+    S.debounce = setTimeout(() => {
+      renderRivers(input.value);
+      list.classList.add("open");
+    }, 100);
+  });
+  input.addEventListener("focus", () => {
+    renderRivers(input.value);
+    list.classList.add("open");
+  });
+  input.addEventListener("click", () => {
+    renderRivers(input.value);
+    list.classList.add("open");
+  });
+  input.addEventListener("blur", () => setTimeout(() => list.classList.remove("open"), 250));
   input.addEventListener("keydown", (e) => navList(list, e, (el) => el.click()));
-  clear.addEventListener("click", (e) => { e.stopPropagation(); clearRiver(); });
+  clear.addEventListener("click", (e) => {
+    e.stopPropagation();
+    clearRiver();
+  });
 }
 
 function renderRivers(q) {
-  const list = document.getElementById("riverList"), f = S.rivers.filter(r => fuzzy(q, r.name));
-  if (!f.length) { list.innerHTML = `<div class="search-empty">No rivers found${q ? ` matching "${q}"` : ""}.</div>`; return; }
-  list.innerHTML = f.slice(0, 100).map(r => `<div class="search-item" data-name="${r.name}"><span class="search-item-name">${hl(r.name, q)}</span><span class="search-item-meta">${r.dam_count} dams</span></div>`).join("");
-  list.querySelectorAll(".search-item").forEach(el => el.addEventListener("mousedown", (e) => { e.preventDefault(); selectRiver(el.dataset.name); }));
+  const list = document.getElementById("riverList");
+  const f = S.rivers.filter((r) => fuzzy(q, r.name));
+  if (!f.length) {
+    list.innerHTML = `<div class="search-empty">No rivers found${q ? ` matching "${q}"` : ""}.</div>`;
+    return;
+  }
+  list.innerHTML = f.slice(0, 100).map((r) => `
+    <div class="search-item" data-name="${r.name}">
+      <span class="search-item-name">${hl(r.name, q)}</span>
+      <span class="search-item-meta">${r.dam_count} dams</span>
+    </div>
+  `).join("");
+
+  list.querySelectorAll(".search-item").forEach((el) => {
+    el.addEventListener("pointerdown", (e) => {
+      e.preventDefault();
+      selectRiver(el.dataset.name);
+    });
+  });
 }
 
 function selectRiver(name) {
-  S.river = name; S.dam = null;
+  S.river = name;
+  S.dam = null;
   document.getElementById("riverSearch").value = name;
   document.getElementById("riverClear").style.display = "flex";
   document.getElementById("riverList").classList.remove("open");
-  document.getElementById("damSearch").disabled = false;
-  document.getElementById("damSearch").value = "";
-  document.getElementById("damSearch").placeholder = `Search ${name} dams...`;
+  const damInput = document.getElementById("damSearch");
+  damInput.disabled = false;
+  damInput.value = "";
+  damInput.placeholder = `Select or search ${name} dam...`;
   document.getElementById("damClear").style.display = "none";
   document.getElementById("damList").innerHTML = "";
   hidePanels();
-  searchDams("");
+  resetMapSimulation();
+  searchDams("", true);
 }
 
 function clearRiver() {
-  S.river = null; S.dam = null;
+  S.river = null;
+  S.dam = null;
   document.getElementById("riverSearch").value = "";
   document.getElementById("riverClear").style.display = "none";
   document.getElementById("damSearch").value = "";
   document.getElementById("damSearch").placeholder = "Search all dams...";
   document.getElementById("damClear").style.display = "none";
   document.getElementById("damList").innerHTML = "";
-  if (damMarker) { map.removeLayer(damMarker); damMarker = null; }
+  clearDamMarkers();
+  resetMapSimulation();
   hidePanels();
+  if (map) map.flyTo([ORIGIN_LAT, ORIGIN_LON], 5, { duration: 1.5 });
+  loadInitialDams();
 }
 
 function hidePanels() {
-  ["summarySection", "paramsSection", "progressSection", "resultsSection", "errorSection"].forEach(id => {
-    document.getElementById(id).style.display = "none";
+  ["summarySection", "paramsSection", "progressSection", "resultsSection", "errorSection"].forEach((id) => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = "none";
   });
 }
 
@@ -263,38 +441,107 @@ function hidePanels() {
 // Dam Search
 // ---------------------------------------------------------------------------
 function setupDamSearch() {
-  const input = document.getElementById("damSearch"), list = document.getElementById("damList"), clear = document.getElementById("damClear");
-  input.addEventListener("input", () => { clearTimeout(S.debounce); S.debounce = setTimeout(() => { searchDams(input.value); list.classList.add("open"); }, 200); });
-  input.addEventListener("focus", () => { searchDams(input.value); list.classList.add("open"); });
-  input.addEventListener("blur", () => setTimeout(() => list.classList.remove("open"), 200));
+  const input = document.getElementById("damSearch");
+  const list = document.getElementById("damList");
+  const clear = document.getElementById("damClear");
+
+  input.addEventListener("input", () => {
+    clearTimeout(S.debounce);
+    S.debounce = setTimeout(() => {
+      searchDams(input.value, true);
+    }, 150);
+  });
+  input.addEventListener("focus", () => {
+    searchDams(input.value, true);
+  });
+  input.addEventListener("click", () => {
+    searchDams(input.value, true);
+  });
+  input.addEventListener("blur", () => setTimeout(() => list.classList.remove("open"), 250));
   input.addEventListener("keydown", (e) => navList(list, e, (el) => el.click()));
-  clear.addEventListener("click", (e) => { e.stopPropagation(); clearDam(); });
+  clear.addEventListener("click", (e) => {
+    e.stopPropagation();
+    clearDam();
+  });
 }
 
-async function searchDams(q) {
-  const list = document.getElementById("damList"), status = document.getElementById("damSelectorStatus");
+async function searchDams(q, autoOpen = false) {
+  const list = document.getElementById("damList");
+  const status = document.getElementById("damSelectorStatus");
   if (S.abort) S.abort.abort();
   S.abort = new AbortController();
-  list.innerHTML = '<div class="search-loading">Searching...</div>';
+  list.innerHTML = '<div class="search-loading">Searching dams...</div>';
+  if (autoOpen) list.classList.add("open");
+
   try {
     let url = S.river ? `${API}/rivers/${encodeURIComponent(S.river)}/dams` : `${API}/dams?max_results=200`;
     if (q) url += (url.includes("?") ? "&" : "?") + `q=${encodeURIComponent(q)}`;
     const r = await fetch(url, { signal: S.abort.signal });
     const d = await r.json();
     S.dams = d.dams || [];
-    status.textContent = S.dams.length;
+    if (status) status.textContent = d.count || S.dams.length;
     renderDams(S.dams, q);
+    if (autoOpen) list.classList.add("open");
+
+    // When a river is selected, plot all its dams on the map as interactive markers
+    if (S.river && S.dams.length && !S.dam && poiMarkersLayer) {
+      poiMarkersLayer.clearLayers();
+      const coords = [];
+      S.dams.forEach((dm) => {
+        if (dm.latitude && dm.longitude) {
+          coords.push([dm.latitude, dm.longitude]);
+          const pin = L.circleMarker([dm.latitude, dm.longitude], {
+            radius: 8,
+            fillColor: "#0284c7",
+            color: "#ffffff",
+            weight: 2,
+            opacity: 1,
+            fillOpacity: 0.85,
+          }).addTo(poiMarkersLayer);
+          pin.bindPopup(`
+            <div style="font-family: var(--font-ui); padding: 4px;">
+              <div style="font-weight: 700; color: #0b3d59; font-size: 12px;">${dm.name}</div>
+              <div style="color: #666; font-size: 11px;">River: ${dm.river || S.river} | State: ${dm.state || "N/A"}</div>
+              <div style="color: #333; font-size: 11px; margin-top: 2px;">Height: <b>${dm.dam_height_m || 30} m</b></div>
+            </div>
+          `);
+          pin.on("click", () => selectDam(dm));
+        }
+      });
+      if (coords.length && map) {
+        if (coords.length === 1) {
+          map.setView(coords[0], 11);
+        } else {
+          map.fitBounds(coords, { padding: [50, 50], maxZoom: 11 });
+        }
+      }
+    }
   } catch (e) {
     if (e.name === "AbortError") return;
-    list.innerHTML = '<div class="search-empty">Unable to load dams.<button class="search-retry">Retry</button></div>';
+    list.innerHTML = '<div class="search-empty">Unable to load dams.<button class="search-retry" onclick="searchDams(\'\', true)">Retry</button></div>';
   }
 }
 
 function renderDams(dams, q) {
   const list = document.getElementById("damList");
-  if (!dams.length) { list.innerHTML = `<div class="search-empty">No dams found${q ? ` matching "${q}"` : ""}.</div>`; return; }
-  list.innerHTML = dams.slice(0, 80).map(d => `<div class="search-item" data-id="${d.id}"><div class="search-item-name">${hl(d.name, q)}</div><div class="search-item-meta">${d.river || ""} | ${d.state || ""} ${d.dam_height_m ? "| " + d.dam_height_m + "m" : ""}</div></div>`).join("");
-  list.querySelectorAll(".search-item").forEach(el => el.addEventListener("mousedown", (e) => { e.preventDefault(); const dam = S.dams.find(d => d.id === el.dataset.id); if (dam) selectDam(dam); }));
+  if (!dams.length) {
+    list.innerHTML = `<div class="search-empty">No dams found${q ? ` matching "${q}"` : ""}.</div>`;
+    return;
+  }
+  list.innerHTML = dams.slice(0, 80).map((d) => `
+    <div class="search-item" data-id="${d.id}">
+      <div class="search-item-name">${hl(d.name, q)}</div>
+      <div class="search-item-meta">${d.river || "Unknown River"} | ${d.state || ""} ${d.dam_height_m ? "| " + d.dam_height_m + "m" : ""}</div>
+    </div>
+  `).join("");
+
+  list.querySelectorAll(".search-item").forEach((el) => {
+    el.addEventListener("pointerdown", (e) => {
+      e.preventDefault();
+      const dam = S.dams.find((d) => d.id === el.dataset.id);
+      if (dam) selectDam(dam);
+    });
+  });
 }
 
 function selectDam(dam) {
@@ -317,19 +564,54 @@ function selectDam(dam) {
   document.getElementById("errorSection").style.display = "none";
   validateAll();
 
-  // Fresh dam → reset metrics drawer to "—" / Idle (no stale values)
   dashboard?.reset();
   setDrawerStatus("idle");
 
-  // Map
-  ORIGIN_LAT = dam.latitude; ORIGIN_LON = dam.longitude;
-  map.setView([ORIGIN_LAT, ORIGIN_LON], 13);
-  if (damMarker) map.removeLayer(damMarker);
-  damMarker = L.marker([ORIGIN_LAT, ORIGIN_LON]).addTo(map)
-    .bindPopup(`<b>${dam.name}</b><br>${dam.river || ""}<br>${dam.state || ""}`).openPopup();
+  // Reset any running playback
+  resetMapSimulation();
 
-  // Fetch live rainfall
+  // Smooth camera flight to the selected dam
+  map.flyTo([dam.latitude, dam.longitude], 13, { duration: 1.8 });
+
+  // Clear previous dam marker & reservoir
+  clearDamMarkers();
+
+  // Create pulsing Dam marker (Strictly NO emojis)
+  const damPulseIcon = L.divIcon({
+    className: "dam-marker-wrap",
+    html: '<div class="dam-pulse-marker"><div class="dam-pulse-ring"></div><div class="dam-pulse-circle"></div></div>',
+    iconSize: [24, 24],
+    iconAnchor: [12, 12],
+  });
+
+  damMarker = L.marker([dam.latitude, dam.longitude], { icon: damPulseIcon }).addTo(map)
+    .bindPopup(`
+      <div style="font-family: var(--font-ui); padding: 4px;">
+        <div style="font-weight: 700; color: #0b3d59; font-size: 13px;">${dam.name}</div>
+        <div style="color: #666; font-size: 11px; margin-top: 2px;">River: ${dam.river || "Unknown"} | State: ${dam.state || "N/A"}</div>
+        <div style="color: #444; font-size: 11px; margin-top: 4px;">Height: <b>${dam.dam_height_m || 30} m</b> | Capacity: <b>${dam.reservoir_volume_mcm || 100} MCM</b></div>
+      </div>
+    `).openPopup();
+
+  // Draw reservoir estimation perimeter buffer circle
+  const volMcm = dam.reservoir_volume_mcm || 100;
+  const radiusMeters = Math.min(4500, Math.max(900, Math.sqrt(volMcm) * 160));
+  reservoirLayer = L.circle([dam.latitude, dam.longitude], {
+    radius: radiusMeters,
+    color: "#0284c7",
+    weight: 2,
+    dashArray: "4, 6",
+    fillColor: "#38bdf8",
+    fillOpacity: 0.18,
+  }).addTo(map);
+
+  // Fetch live meteorological rainfall
   fetchLiveRainfall(dam.latitude, dam.longitude);
+
+  // Sync with floating assistant
+  if (typeof window.updateAssistantDam === "function") {
+    window.updateAssistantDam(dam);
+  }
 }
 
 function clearDam() {
@@ -337,12 +619,59 @@ function clearDam() {
   document.getElementById("damSearch").value = "";
   document.getElementById("damClear").style.display = "none";
   document.getElementById("damSelectorStatus").textContent = "";
-  if (damMarker) { map.removeLayer(damMarker); damMarker = null; }
+  clearDamMarkers();
+  resetMapSimulation();
   hidePanels();
+  if (typeof window.updateAssistantDam === "function") {
+    window.updateAssistantDam(null);
+  }
+}
+
+function clearDamMarkers() {
+  if (damMarker) {
+    map.removeLayer(damMarker);
+    damMarker = null;
+  }
+  if (reservoirLayer) {
+    map.removeLayer(reservoirLayer);
+    reservoirLayer = null;
+  }
+  if (poiMarkersLayer) {
+    poiMarkersLayer.clearLayers();
+  }
+}
+
+function resetMapSimulation() {
+  pausePlayback();
+  mapPlayer.totalFrames = 0;
+  mapPlayer.currentFrame = 0;
+  mapPlayer.frames = [];
+  mapPlayer.velocityFrames = [];
+  mapPlayer.riskFrames = [];
+  mapPlayer.framePolygons = [];
+  mapPlayer.arrivalGrid = null;
+
+  if (floodCanvasOverlay) {
+    map.removeLayer(floodCanvasOverlay);
+    floodCanvasOverlay = null;
+  }
+  if (floodPolygonLayer) {
+    floodPolygonLayer.clearLayers();
+  }
+  if (poiMarkersLayer) {
+    poiMarkersLayer.clearLayers();
+  }
+
+  const hud = document.getElementById("gisPlayerHud");
+  if (hud) hud.style.display = "none";
+  const legend = document.getElementById("gisLegendCard");
+  if (legend) legend.style.display = "none";
+  const probe = document.getElementById("gisProbeHud");
+  if (probe) probe.style.display = "none";
 }
 
 // ---------------------------------------------------------------------------
-// Live Rainfall
+// Weather / Rainfall
 // ---------------------------------------------------------------------------
 async function fetchLiveRainfall(lat, lon) {
   const badge = document.getElementById("liveRainfallBtn");
@@ -369,31 +698,28 @@ function showSummaryCard(dam) {
   document.getElementById("sRiver").textContent = dam.river || "N/A";
   document.getElementById("sDam").textContent = dam.name;
   document.getElementById("sState").textContent = dam.state || "N/A";
-  document.getElementById("sDem").textContent = "Pending";
-  document.getElementById("sDem").className = "s-value";
+  document.getElementById("sDem").textContent = "Ready";
+  document.getElementById("sDem").className = "s-value s-ok";
   document.getElementById("sRes").textContent = "30 m";
   document.getElementById("sRuntime").textContent = `~${estimateRuntime(dam)} s`;
 }
 
 function estimateRuntime(dam) {
   const vol = dam.reservoir_volume_mcm || 100;
-  if (vol < 10) return 5;
-  if (vol < 100) return 8;
-  if (vol < 1000) return 12;
-  return 15;
+  if (vol < 10) return 4;
+  if (vol < 100) return 6;
+  if (vol < 1000) return 9;
+  return 12;
 }
 
 // ---------------------------------------------------------------------------
-// Failure Modes — dropdown, description, per-mode defaults
+// Failure Modes
 // ---------------------------------------------------------------------------
 function setupFailureModes() {
   const select = document.getElementById("failureMode");
   const hint = document.getElementById("failureModeHint");
   if (!select) return;
 
-  // Track manual edits: once the user types a value, mode changes no longer
-  // override that field (requirement 4). Clearing the field re-enables
-  // auto-fill so mode defaults apply again.
   ["breachWidth", "breachTime"].forEach((id) => {
     const el = document.getElementById(id);
     el?.addEventListener("input", () => {
@@ -405,9 +731,9 @@ function setupFailureModes() {
   select.addEventListener("change", () => {
     showFailureModeDescription(select.value);
     applyFailureModeDefaults(select.value);
+    if (typeof window.updateAssistantDam === "function") window.updateAssistantDam(S.dam);
   });
 
-  // Populate from backend constants (single source of truth), fall back locally
   populateFailureModeSelect(FAILURE_MODES);
   showFailureModeDescription(select.value || "piping");
   applyFailureModeDefaults(select.value || "piping", true);
@@ -419,14 +745,16 @@ function setupFailureModes() {
       FAILURE_MODES = modes;
       const previous = select.value;
       populateFailureModeSelect(modes);
-      select.value = previous; // restore selection after re-population
+      select.value = previous;
       showFailureModeDescription(select.value);
       if (!S.userEditedBreach.width && !S.userEditedBreach.time) {
         applyFailureModeDefaults(select.value, true);
       }
       if (hint) hint.textContent = "How the dam breach initiates";
     })
-    .catch(() => { if (hint) hint.textContent = "How the dam breach initiates (offline defaults)"; });
+    .catch(() => {
+      if (hint) hint.textContent = "How the dam breach initiates (offline defaults)";
+    });
 }
 
 function populateFailureModeSelect(modes) {
@@ -450,13 +778,12 @@ function applyFailureModeDefaults(value, force = false) {
   const timeEl = document.getElementById("breachTime");
   const d = mode.defaults || {};
 
-  // Requirement 4: never clobber values the user typed by hand.
   if (timeEl && (force || !S.userEditedBreach.time)) {
     timeEl.value = d.breach_formation_time_min ?? "";
   }
   if (widthEl && (force || !S.userEditedBreach.width)) {
     if (d.auto_breach_width) {
-      widthEl.value = ""; // backend computes from regression + mode multiplier
+      widthEl.value = "";
       widthEl.placeholder = "Auto (mode default)";
     } else {
       widthEl.value = d.breach_width_m ?? "";
@@ -470,7 +797,7 @@ function applyFailureModeDefaults(value, force = false) {
 // Validation
 // ---------------------------------------------------------------------------
 function setupValidation() {
-  ["waterLevel", "manningN", "rainfall", "simHours", "breachWidth", "breachTime"].forEach(id => {
+  ["waterLevel", "manningN", "rainfall", "simHours", "breachWidth", "breachTime"].forEach((id) => {
     document.getElementById(id)?.addEventListener("input", validateAll);
   });
 }
@@ -478,18 +805,10 @@ function setupValidation() {
 function setupAdvancedToggle() {
   const toggle = document.getElementById("advancedToggle");
   const panel = document.getElementById("advancedPanel");
-  toggle.addEventListener("click", () => {
+  toggle?.addEventListener("click", () => {
     toggle.classList.toggle("open");
     panel.classList.toggle("open");
   });
-  const progToggle = document.getElementById("progDetailsToggle");
-  const progSteps = document.getElementById("progressSteps");
-  if (progToggle && progSteps) {
-    progToggle.addEventListener("click", () => {
-      progToggle.classList.toggle("open");
-      progSteps.style.display = progSteps.style.display === "none" ? "flex" : "none";
-    });
-  }
 }
 
 function validateAll() {
@@ -498,67 +817,73 @@ function validateAll() {
   const errors = {};
 
   const wl = parseFloat(document.getElementById("waterLevel").value);
-  if (isNaN(wl) || wl < 10 || wl > 100) { errors.waterLevel = "Must be 10–100%"; valid = false; }
+  if (isNaN(wl) || wl < 10 || wl > 100) {
+    errors.waterLevel = "Must be 10–100%";
+    valid = false;
+  }
 
   const rf = parseFloat(document.getElementById("rainfall").value);
-  if (isNaN(rf) || rf < 0) { errors.rainfall = "Must be ≥ 0"; valid = false; }
+  if (isNaN(rf) || rf < 0) {
+    errors.rainfall = "Must be ≥ 0";
+    valid = false;
+  }
 
   const dur = parseFloat(document.getElementById("simHours").value);
-  if (isNaN(dur) || dur <= 0 || dur > 12) { errors.simHours = "Must be 0.5–12 hours"; valid = false; }
+  if (isNaN(dur) || dur <= 0 || dur > 24) {
+    errors.simHours = "Must be 0.5–24 hours";
+    valid = false;
+  }
 
   const bw = document.getElementById("breachWidth").value;
-  if (bw && (isNaN(parseFloat(bw)) || parseFloat(bw) <= 0)) { errors.breachWidth = "Must be positive"; valid = false; }
+  if (bw && (isNaN(parseFloat(bw)) || parseFloat(bw) <= 0)) {
+    errors.breachWidth = "Must be positive";
+    valid = false;
+  }
 
   const bt = document.getElementById("breachTime").value;
-  if (bt && (isNaN(parseFloat(bt)) || parseFloat(bt) <= 0)) { errors.breachTime = "Must be positive"; valid = false; }
+  if (bt && (isNaN(parseFloat(bt)) || parseFloat(bt) <= 0)) {
+    errors.breachTime = "Must be positive";
+    valid = false;
+  }
 
-  Object.keys(errors).forEach(k => {
+  Object.keys(errors).forEach((k) => {
     const el = document.getElementById("err" + k.charAt(0).toUpperCase() + k.slice(1));
     const input = document.getElementById(k);
     if (el) el.textContent = errors[k];
     if (input) input.classList.toggle("field-input-error", !!errors[k]);
   });
 
-  document.getElementById("runBtn").disabled = !valid;
-  if (valid) document.getElementById("validationMsg").textContent = "";
+  const runBtn = document.getElementById("runBtn");
+  if (runBtn) runBtn.disabled = !valid;
 }
 
 // ---------------------------------------------------------------------------
-// Run Simulation
+// Run Simulation Execution
 // ---------------------------------------------------------------------------
 function setupRunButton() {
-  document.getElementById("runBtn").addEventListener("click", runSimulation);
+  document.getElementById("runBtn")?.addEventListener("click", runSimulation);
   document.getElementById("retryBtn")?.addEventListener("click", runSimulation);
-  document.getElementById("copyErrorBtn")?.addEventListener("click", () => {
-    navigator.clipboard.writeText(document.getElementById("errorMessage").textContent);
-  });
   document.getElementById("exportReportBtn")?.addEventListener("click", exportReport);
-  document.getElementById("compareBtn")?.addEventListener("click", showCompareFlow);
 }
 
 async function runSimulation() {
   if (!S.dam || S.simRunning) return;
   S.simRunning = true;
+
   const btn = document.getElementById("runBtn");
   btn.disabled = true;
-  btn.innerHTML = '<span class="run-spinner"></span><span class="run-btn-text">Running...</span>';
+  btn.innerHTML = '<span class="run-spinner"></span><span class="run-btn-text">Computing Hydrodynamics...</span>';
 
   document.getElementById("progressSection").style.display = "block";
   document.getElementById("resultsSection").style.display = "none";
   document.getElementById("errorSection").style.display = "none";
 
-  const progToggle = document.getElementById("progDetailsToggle");
-  const progStepsEl = document.getElementById("progressSteps");
-  if (progToggle) progToggle.classList.remove("open");
-  if (progStepsEl) progStepsEl.style.display = "none";
-
   const steps = [
-    { id: "dem", label: "Download DEM" },
-    { id: "terrain", label: "Load Terrain" },
-    { id: "mesh", label: "Generate Mesh" },
-    { id: "sim", label: "Run Simulation" },
-    { id: "flood", label: "Generate Flood Map" },
-    { id: "ai", label: "AI Analysis" },
+    { id: "dem", label: "Acquire DEM" },
+    { id: "terrain", label: "Analyze Downstream Slope" },
+    { id: "breach", label: "Breach Hydrograph" },
+    { id: "routing", label: "Routing Shallow Water Equations" },
+    { id: "hazard", label: "Compute Inundation & Risk" },
   ];
 
   const progEl = document.getElementById("progressSteps");
@@ -572,23 +897,23 @@ async function runSimulation() {
       <div class="pt-icon"><span class="pt-pending-icon">${i + 1}</span></div>
       <span class="pt-label">${s.label}</span>
       <span class="pt-time"></span>
-    </div>`).join("");
+    </div>
+  `).join("");
 
   S.startTime = Date.now();
-
-  // Timer to update elapsed time
   const timer = setInterval(() => {
     const ms = Date.now() - S.startTime;
     elapsedEl.textContent = `${(ms / 1000).toFixed(1)} s`;
   }, 100);
 
-  // Breach overrides: only sent when the user typed a value (else the
-  // backend applies the failure-mode defaults).
   const bwRaw = document.getElementById("breachWidth").value.trim();
   const btRaw = document.getElementById("breachTime").value.trim();
 
   const params = {
-    dam_id: S.dam.id, dam_name: S.dam.name, latitude: S.dam.latitude, longitude: S.dam.longitude,
+    dam_id: S.dam.id,
+    dam_name: S.dam.name,
+    latitude: S.dam.latitude,
+    longitude: S.dam.longitude,
     reservoir_volume_m3: (S.dam.reservoir_volume_mcm || 100) * 1e6 * (parseFloat(document.getElementById("waterLevel").value) / 100),
     dam_height_m: S.dam.dam_height_m || 30,
     failure_mode: document.getElementById("failureMode").value,
@@ -599,28 +924,17 @@ async function runSimulation() {
     breach_formation_time_min: btRaw !== "" ? parseFloat(btRaw) : null,
   };
 
-  // Save for scenario comparison
   S.lastScenarioParams = { ...params };
-
-  // Mark step 1 as running immediately
-  markStepRunning(0, steps, stepLabel, remainEl);
-  dashboard?.setCalculating();
   setDrawerStatus("running");
-  syncTimeButtons();
-
-  // Digital twin: lock the camera to the flood view (zoom + slight orbit only)
-  viewer3D?.setCameraPreset("valley", 900);
-  viewer3D?.setCameraLocked(true);
+  markStepRunning(0, steps, stepLabel, remainEl);
 
   try {
-    // Try SSE-backed progress first
     let data;
     try {
       data = await runWithSSE(params, steps, barEl, stepLabel, remainEl);
     } catch (sseErr) {
-      // Fallback to direct /simulate call
-      console.warn("SSE progress unavailable, falling back to direct call:", sseErr.message);
-      stepLabel.textContent = "Running (direct)...";
+      console.warn("SSE progress stream unavailable, falling back to direct /simulate:", sseErr.message);
+      stepLabel.textContent = "Solving 2D Shallow Water Equations...";
 
       const res = await fetch(`${API}/simulate`, {
         method: "POST",
@@ -632,27 +946,19 @@ async function runSimulation() {
         throw new Error(err.detail || `HTTP ${res.status}`);
       }
       data = await res.json();
-
-      // Mark all steps done
-      steps.forEach((s, i) => markStepDone(i, steps));
+      steps.forEach((_, i) => markStepDone(i, steps));
       barEl.style.width = "100%";
     }
 
     clearInterval(timer);
-
     barEl.style.width = "100%";
-    stepLabel.textContent = "Complete";
+    stepLabel.textContent = "Simulation Completed";
     remainEl.textContent = "";
     const totalMs = Date.now() - S.startTime;
     elapsedEl.textContent = `${(totalMs / 1000).toFixed(1)} s`;
 
     S.simResult = data;
     showResults(data, totalMs);
-
-    document.getElementById("sDem").textContent = "Downloaded";
-    document.getElementById("sDem").classList.add("s-ok");
-    if (progStepsEl) progStepsEl.style.display = "none";
-
   } catch (err) {
     clearInterval(timer);
     showError(err);
@@ -660,9 +966,6 @@ async function runSimulation() {
     S.simRunning = false;
     btn.disabled = false;
     btn.innerHTML = '<span class="run-btn-text">Run Simulation</span>';
-    // Release the camera back to the constrained free mode
-    viewer3D?.setCameraLocked(false);
-    viewer3D?.cameraManager?.recenterOrbitWindow();
   }
 }
 
@@ -680,24 +983,20 @@ async function runWithSSE(params, steps, barEl, stepLabel, remainEl) {
     es.onmessage = (event) => {
       try {
         const msg = JSON.parse(event.data);
-        if (msg.error && msg.error !== null) {
+        if (msg.error) {
           es.close();
           reject(new Error(msg.error));
           return;
         }
         const pct = ((msg.step + 1) / msg.total_steps) * 100;
-        barEl.style.width = Math.min(pct, 95) + "%";
+        barEl.style.width = Math.min(pct, 96) + "%";
         stepLabel.textContent = `${msg.label}...`;
         remainEl.textContent = `Step ${msg.step + 1} of ${msg.total_steps}`;
 
-        // Mark previous steps done, current as running
         for (let i = 0; i < msg.step; i++) markStepDone(i, steps);
         markStepRunning(msg.step, steps, stepLabel, remainEl);
-
-        if (msg.done) {
-          markStepDone(msg.step, steps);
-        }
-      } catch (e) { /* skip parse errors */ }
+        if (msg.done) markStepDone(msg.step, steps);
+      } catch (e) {}
     };
     es.addEventListener("result", (event) => {
       es.close();
@@ -705,7 +1004,9 @@ async function runWithSSE(params, steps, barEl, stepLabel, remainEl) {
         const data = JSON.parse(event.data);
         steps.forEach((_, i) => markStepDone(i, steps));
         resolve(data);
-      } catch (e) { reject(new Error("Failed to parse result")); }
+      } catch (e) {
+        reject(new Error("Failed to parse result"));
+      }
     });
     es.onerror = () => {
       es.close();
@@ -721,7 +1022,10 @@ function markStepRunning(index, steps, stepLabel, remainEl) {
   if (!el) return;
   el.classList.add("running");
   const icon = el.querySelector(".pt-pending-icon");
-  if (icon) { icon.className = ""; icon.innerHTML = '<span class="pt-spinner-icon"></span>'; }
+  if (icon) {
+    icon.className = "";
+    icon.innerHTML = '<span class="pt-spinner-icon"></span>';
+  }
   if (stepLabel) stepLabel.textContent = `${s.label}...`;
   if (remainEl) remainEl.textContent = `Step ${index + 1} of ${steps.length}`;
 }
@@ -734,11 +1038,14 @@ function markStepDone(index, steps) {
   el.classList.remove("running");
   el.classList.add("done");
   const doneIcon = el.querySelector(".pt-spinner-icon") || el.querySelector(".pt-pending-icon");
-  if (doneIcon) { doneIcon.className = "pt-check-icon"; doneIcon.textContent = "✓"; }
+  if (doneIcon) {
+    doneIcon.className = "pt-check-icon";
+    doneIcon.textContent = "✓";
+  }
 }
 
 // ---------------------------------------------------------------------------
-// Results
+// Results Handling & Map Player Initialization
 // ---------------------------------------------------------------------------
 function showResults(data, simTimeMs) {
   document.getElementById("resultsSection").style.display = "block";
@@ -750,398 +1057,512 @@ function showResults(data, simTimeMs) {
   document.getElementById("rMaxDepth").textContent = `${data.summary?.max_flood_depth_m || "-"} m`;
   document.getElementById("rAiReady").textContent = data.simulation_id ? "Yes" : "No";
 
-  // Show action buttons
   document.getElementById("exportReportBtn").style.display = "inline-flex";
-  document.getElementById("compareBtn").style.display = "inline-flex";
 
-  // Update live simulation metrics (drawer remains hidden by default until toggled)
   if (dashboard) {
     dashboard.setSummary(data, simTimeMs);
   }
   setDrawerStatus("completed");
-  syncTimeButtons();
 
-  // Reset playback to frame 0 and focus the flood view
-  viewer3D?.pause();
-  viewer3D?.animationManager?.setFrame(0);
-  syncTimeButtons();
+  // Load simulation data into the Map Player
+  initMapPlayer(data);
 
-  // Load into 3D viewport
-  if (viewer3D) {
-    try {
-      viewer3D.loadSimulation(data);
-      document.getElementById("viewportToolbar").style.display = "flex";
-    } catch (vErr) {
-      console.error("Viewer error:", vErr);
-    }
-  }
-  updateMapOverlay(data);
-
-  // Trigger AI analysis if panel is available
-  if (typeof window.onAISimulationComplete === 'function') {
+  // Trigger AI Copilot completion callback if loaded
+  if (typeof window.onAISimulationComplete === "function") {
     window.onAISimulationComplete(data);
   }
 }
 
-function updateMapOverlay(data) {
-  if (!data?.depth_grids || !map) return;
-  const last = data.depth_grids[data.depth_grids.length - 1];
-  const rows = last.length, cols = last[0].length;
+// ---------------------------------------------------------------------------
+// GIS Map Simulation Player (Dam-Anchored, Strictly NO Emojis)
+// ---------------------------------------------------------------------------
+function initMapPlayer(data) {
+  mapPlayer.frames = data.depth_grids || [];
+  mapPlayer.velocityFrames = data.velocity_grids || [];
+  mapPlayer.riskFrames = data.risk_grids || [];
+  mapPlayer.framePolygons = data.frame_polygons || [];
+  mapPlayer.arrivalGrid = data.arrival_grid || null;
+  mapPlayer.timestepsFormatted = data.timesteps_formatted || [];
+  mapPlayer.snapshotTimes = data.snapshot_times_s || [];
+  mapPlayer.totalFrames = mapPlayer.frames.length;
+  mapPlayer.currentFrame = 0;
+  mapPlayer.demBounds = data.dem_bounds;
+
+  // Derive geographical bounding box
+  if (data.dem_bounds) {
+    const b = data.dem_bounds;
+    mapPlayer.bounds = [[b.south, b.west], [b.north, b.east]];
+  } else {
+    const lat = data.dam_location?.latitude || S.dam.latitude;
+    const lon = data.dam_location?.longitude || S.dam.longitude;
+    mapPlayer.bounds = [[lat - 0.25, lon - 0.15], [lat + 0.1, lon + 0.35]];
+  }
+
+  // Setup timeline slider
+  const slider = document.getElementById("playerTimeline");
+  if (slider) {
+    slider.min = 0;
+    slider.max = Math.max(0, mapPlayer.totalFrames - 1);
+    slider.value = 0;
+  }
+
+  // Show player HUD and active layer legend
+  document.getElementById("gisPlayerHud").style.display = "block";
+  document.getElementById("gisLegendCard").style.display = "block";
+  updateGisLegend(mapPlayer.activeLayer);
+
+  // Clear any marker addons so the flood polygon on map is clean with no addons
+  if (poiMarkersLayer) poiMarkersLayer.clearLayers();
+
+  // Clear any existing overlay from prior simulation
+  if (floodCanvasOverlay) {
+    map.removeLayer(floodCanvasOverlay);
+    floodCanvasOverlay = null;
+  }
+  if (floodPolygonLayer) {
+    floodPolygonLayer.clearLayers();
+  }
+
+  // Smoothly fit map to the simulation bounding box so the flood wave is in clear view
+  if (mapPlayer.bounds && map) {
+    map.fitBounds(mapPlayer.bounds, { padding: [40, 40], maxZoom: 14 });
+  }
+
+  // Render initial frame strictly at dam
+  renderMapFrame(0);
+
+  // Auto-play preview
+  startPlayback();
+}
+
+function setupGisLayerControls() {
+  const group = document.getElementById("layerBtnGroup");
+  if (!group) return;
+
+  group.addEventListener("click", (e) => {
+    const btn = e.target.closest(".gis-layer-btn");
+    if (!btn) return;
+    const layer = btn.dataset.layer;
+    if (!layer || layer === mapPlayer.activeLayer) return;
+
+    group.querySelectorAll(".gis-layer-btn").forEach((b) => b.classList.remove("active"));
+    btn.classList.add("active");
+
+    mapPlayer.activeLayer = layer;
+    updateGisLegend(layer);
+    renderMapFrame(mapPlayer.currentFrame);
+  });
+}
+
+function updateGisLegend(layer) {
+  const title = document.getElementById("gisLegendTitle");
+  const bar = document.getElementById("gisLegendBar");
+  const labels = document.getElementById("gisLegendLabels");
+  if (!title || !bar || !labels) return;
+
+  if (layer === "depth") {
+    title.textContent = "Water Depth (m)";
+    bar.style.background = "linear-gradient(to right, #26c6da, #2196f3, #1565c0, #e65100, #d50000)";
+    labels.innerHTML = "<span>0.1m</span><span>1.0m</span><span>2.5m</span><span>4.0m</span><span>&gt;5.0m</span>";
+  } else if (layer === "velocity") {
+    title.textContent = "Flow Velocity (m/s)";
+    bar.style.background = "linear-gradient(to right, #4caf50, #fbc02d, #f57c00, #d32f2f)";
+    labels.innerHTML = "<span>0.2</span><span>1.5</span><span>3.0</span><span>&gt;4.5 m/s</span>";
+  } else if (layer === "arrival") {
+    title.textContent = "Arrival Time (min)";
+    bar.style.background = "linear-gradient(to right, #e91e63, #ff9800, #ffeb3b, #4caf50, #00bcd4)";
+    labels.innerHTML = "<span>0 min</span><span>30 min</span><span>60 min</span><span>120+ min</span>";
+  } else if (layer === "risk") {
+    title.textContent = "Hazard Risk (D × V)";
+    bar.style.background = "linear-gradient(to right, #34d399, #38bdf8, #f59e0b, #ef4444)";
+    labels.innerHTML = "<span>Low</span><span>Moderate</span><span>High</span><span>Critical</span>";
+  }
+}
+
+function setupMapPlayerControls() {
+  const playBtn = document.getElementById("playerPlayBtn");
+  const prevBtn = document.getElementById("playerPrevBtn");
+  const nextBtn = document.getElementById("playerNextBtn");
+  const slider = document.getElementById("playerTimeline");
+  const speedGroup = document.querySelector(".player-speed-group");
+
+  playBtn?.addEventListener("click", () => {
+    if (mapPlayer.playing) pausePlayback();
+    else startPlayback();
+  });
+
+  prevBtn?.addEventListener("click", () => {
+    pausePlayback();
+    const prev = (mapPlayer.currentFrame - 1 + mapPlayer.totalFrames) % mapPlayer.totalFrames;
+    renderMapFrame(prev);
+  });
+
+  nextBtn?.addEventListener("click", () => {
+    pausePlayback();
+    const next = (mapPlayer.currentFrame + 1) % mapPlayer.totalFrames;
+    renderMapFrame(next);
+  });
+
+  slider?.addEventListener("input", (e) => {
+    pausePlayback();
+    const idx = parseInt(e.target.value, 10);
+    renderMapFrame(idx);
+  });
+
+  speedGroup?.addEventListener("click", (e) => {
+    const btn = e.target.closest(".speed-btn");
+    if (!btn) return;
+    const spd = parseFloat(btn.dataset.speed);
+    if (!isNaN(spd)) {
+      mapPlayer.speed = spd;
+      speedGroup.querySelectorAll(".speed-btn").forEach((b) => b.classList.remove("active"));
+      btn.classList.add("active");
+      if (mapPlayer.playing) {
+        pausePlayback();
+        startPlayback();
+      }
+    }
+  });
+}
+
+function startPlayback() {
+  if (!mapPlayer.totalFrames) return;
+  mapPlayer.playing = true;
+  document.getElementById("playIcon").style.display = "none";
+  document.getElementById("pauseIcon").style.display = "block";
+
+  clearInterval(mapPlayer.timer);
+  const intervalMs = Math.max(80, Math.round(600 / mapPlayer.speed));
+  mapPlayer.timer = setInterval(() => {
+    const next = (mapPlayer.currentFrame + 1) % mapPlayer.totalFrames;
+    renderMapFrame(next);
+  }, intervalMs);
+}
+
+function pausePlayback() {
+  mapPlayer.playing = false;
+  document.getElementById("playIcon").style.display = "block";
+  document.getElementById("pauseIcon").style.display = "none";
+  clearInterval(mapPlayer.timer);
+}
+
+function renderMapFrame(frameIdx) {
+  if (!mapPlayer.totalFrames || frameIdx < 0 || frameIdx >= mapPlayer.totalFrames) return;
+  mapPlayer.currentFrame = frameIdx;
+
+  // Update slider & labels
+  const slider = document.getElementById("playerTimeline");
+  if (slider) slider.value = frameIdx;
+
+  const timeLabel = mapPlayer.timestepsFormatted[frameIdx] || `${(frameIdx * 0.25).toFixed(2)}h`;
+  document.getElementById("playerTimestamp").textContent = timeLabel;
+  document.getElementById("playerFrameBadge").textContent = `Frame ${frameIdx + 1} / ${mapPlayer.totalFrames}`;
+
+  // Update crisp GeoJSON flood boundary polygon
+  if (floodPolygonLayer) {
+    floodPolygonLayer.clearLayers();
+    const framePoly = mapPlayer.framePolygons ? mapPlayer.framePolygons[frameIdx] : null;
+    if (framePoly && framePoly.coordinates && framePoly.coordinates.length > 0) {
+      let strokeColor = "#38bdf8";
+      let fillColor = "#0284c7";
+      if (mapPlayer.activeLayer === "risk") {
+        strokeColor = "#f59e0b";
+        fillColor = "#ef4444";
+      } else if (mapPlayer.activeLayer === "velocity") {
+        strokeColor = "#f57c00";
+        fillColor = "#ea580c";
+      }
+      floodPolygonLayer.addData(framePoly);
+      floodPolygonLayer.setStyle({
+        color: strokeColor,
+        weight: 2,
+        opacity: 0.95,
+        fillColor: fillColor,
+        fillOpacity: 0.18,
+      });
+    }
+  }
+
+  // Generate dynamic canvas texture for this frame
+  const depthGrid = mapPlayer.frames[frameIdx];
+  const velGrid = mapPlayer.velocityFrames[frameIdx];
+  const riskGrid = mapPlayer.riskFrames[frameIdx];
+
+  if (!depthGrid || !depthGrid.length) return;
+  const rows = depthGrid.length;
+  const cols = depthGrid[0].length;
+
   const canvas = document.createElement("canvas");
-  canvas.width = cols; canvas.height = rows;
+  canvas.width = cols;
+  canvas.height = rows;
   const ctx = canvas.getContext("2d");
   const img = ctx.createImageData(cols, rows);
 
   for (let r = 0; r < rows; r++) {
     for (let c = 0; c < cols; c++) {
-      const d = last[r][c], i = (r * cols + c) * 4;
+      const d = depthGrid[r][c];
+      const v = velGrid ? velGrid[r][c] : 0;
+      const rk = riskGrid ? riskGrid[r][c] : 0;
+      const i = (r * cols + c) * 4;
+
       if (d > 0.05) {
-        // Precise data-driven depth coloring
-        if (d <= 0.5) {
-          img.data[i] = 38; img.data[i + 1] = 198; img.data[i + 2] = 218; img.data[i + 3] = 190;
-        } else if (d <= 2.0) {
-          img.data[i] = 33; img.data[i + 1] = 150; img.data[i + 2] = 243; img.data[i + 3] = 210;
-        } else if (d <= 5.0) {
-          img.data[i] = 26; img.data[i + 1] = 35; img.data[i + 2] = 126; img.data[i + 3] = 230;
-        } else {
-          img.data[i] = 229; img.data[i + 1] = 57; img.data[i + 2] = 53; img.data[i + 3] = 240;
+        if (mapPlayer.activeLayer === "depth") {
+          // Dynamic calculated depth color ramp (Critical levels clearly distinct)
+          if (d <= 0.5) {
+            img.data[i] = 38; img.data[i + 1] = 198; img.data[i + 2] = 218; img.data[i + 3] = 190;
+          } else if (d <= 1.5) {
+            img.data[i] = 33; img.data[i + 1] = 150; img.data[i + 2] = 243; img.data[i + 3] = 210;
+          } else if (d <= 3.0) {
+            img.data[i] = 21; img.data[i + 1] = 101; img.data[i + 2] = 192; img.data[i + 3] = 230;
+          } else if (d <= 5.0) {
+            img.data[i] = 230; img.data[i + 1] = 81; img.data[i + 2] = 0; img.data[i + 3] = 240;
+          } else {
+            // Critical depth (> 5m)
+            img.data[i] = 213; img.data[i + 1] = 0; img.data[i + 2] = 0; img.data[i + 3] = 255;
+          }
+        } else if (mapPlayer.activeLayer === "velocity") {
+          // Dynamic flow velocity coloring
+          if (v <= 1.0) {
+            img.data[i] = 76; img.data[i + 1] = 175; img.data[i + 2] = 80; img.data[i + 3] = 190;
+          } else if (v <= 2.5) {
+            img.data[i] = 251; img.data[i + 1] = 192; img.data[i + 2] = 45; img.data[i + 3] = 210;
+          } else if (v <= 4.0) {
+            img.data[i] = 245; img.data[i + 1] = 124; img.data[i + 2] = 0; img.data[i + 3] = 235;
+          } else {
+            img.data[i] = 211; img.data[i + 1] = 47; img.data[i + 2] = 47; img.data[i + 3] = 250;
+          }
+        } else if (mapPlayer.activeLayer === "risk") {
+          // Dynamic depth x velocity hazard coloring
+          if (rk === 4) {
+            // Critical hazard
+            img.data[i] = 239; img.data[i + 1] = 68; img.data[i + 2] = 68; img.data[i + 3] = 250;
+          } else if (rk === 3) {
+            // High hazard
+            img.data[i] = 245; img.data[i + 1] = 158; img.data[i + 2] = 11; img.data[i + 3] = 230;
+          } else if (rk === 2) {
+            // Moderate hazard
+            img.data[i] = 56; img.data[i + 1] = 189; img.data[i + 2] = 248; img.data[i + 3] = 210;
+          } else {
+            // Low hazard
+            img.data[i] = 52; img.data[i + 1] = 211; img.data[i + 2] = 153; img.data[i + 3] = 190;
+          }
+        } else if (mapPlayer.activeLayer === "arrival") {
+          // Arrival time wavefront
+          const arr = mapPlayer.arrivalGrid ? mapPlayer.arrivalGrid[r][c] : 0;
+          if (arr <= 30) {
+            img.data[i] = 233; img.data[i + 1] = 30; img.data[i + 2] = 99; img.data[i + 3] = 220;
+          } else if (arr <= 60) {
+            img.data[i] = 255; img.data[i + 1] = 152; img.data[i + 2] = 0; img.data[i + 3] = 210;
+          } else {
+            img.data[i] = 0; img.data[i + 1] = 188; img.data[i + 2] = 212; img.data[i + 3] = 190;
+          }
         }
       } else {
-        img.data[i + 3] = 0; // dry cell
+        img.data[i + 3] = 0; // dry terrain cell
       }
     }
   }
+
   ctx.putImageData(img, 0, 0);
+  const dataUrl = canvas.toDataURL();
 
-  const b = data.dem_bounds;
-  const bounds = b ? [[b.south, b.west], [b.north, b.east]] : [[ORIGIN_LAT - 0.3, ORIGIN_LON - 0.2], [ORIGIN_LAT + 0.1, ORIGIN_LON + 0.3]];
-  if (window._floodOverlay) map.removeLayer(window._floodOverlay);
-  window._floodOverlay = L.imageOverlay(canvas.toDataURL(), bounds, { opacity: 0.85 }).addTo(map);
-
-  addMapLegend();
-}
-
-function addMapLegend() {
-  if (window._mapLegend || !map) return;
-  const legend = L.control({ position: "bottomright" });
-  legend.onAdd = function () {
-    const div = L.DomUtil.create("div", "leaflet-flood-legend");
-    div.innerHTML = `
-      <div style="background: rgba(15, 19, 24, 0.92); border: 1px solid #2a3342; border-radius: 4px; padding: 6px 10px; color: #e8ecf0; font-family: monospace; font-size: 10px; line-height: 1.4; box-shadow: 0 4px 12px rgba(0,0,0,0.5);">
-        <div style="font-weight: 600; color: #4a9eff; margin-bottom: 4px; text-transform: uppercase;">Inundation Depth</div>
-        <div style="display: flex; align-items: center; gap: 6px;"><span style="display: inline-block; width: 12px; height: 10px; background: #e53935; border-radius: 2px;"></span> &gt; 5.0 m (Critical)</div>
-        <div style="display: flex; align-items: center; gap: 6px;"><span style="display: inline-block; width: 12px; height: 10px; background: #1a237e; border-radius: 2px;"></span> 2.0 &ndash; 5.0 m (High)</div>
-        <div style="display: flex; align-items: center; gap: 6px;"><span style="display: inline-block; width: 12px; height: 10px; background: #2196f3; border-radius: 2px;"></span> 0.5 &ndash; 2.0 m (Moderate)</div>
-        <div style="display: flex; align-items: center; gap: 6px;"><span style="display: inline-block; width: 12px; height: 10px; background: #26c6da; border-radius: 2px;"></span> 0.05 &ndash; 0.5 m (Low)</div>
-      </div>
-    `;
-    return div;
-  };
-  legend.addTo(map);
-  window._mapLegend = legend;
-}
-
-// ---------------------------------------------------------------------------
-// 3D Toolbar — shared playback helpers
-// ---------------------------------------------------------------------------
-function hasSimulationResults() {
-  return Boolean(S.simResult);
-}
-
-/** Reflect playback state onto the play/pause button (▶ when idle, ⏸ when playing). */
-function syncTimeButtons() {
-  const tbPlay = document.getElementById("tbPlay");
-  const tbStepBack = document.getElementById("tbStepBack");
-  const tbStepFwd = document.getElementById("tbStepFwd");
-  const hasResults = hasSimulationResults();
-
-  // Playback stays disabled until a simulation result exists.
-  if (tbPlay) {
-    tbPlay.disabled = !hasResults;
-    tbPlay.textContent = viewer3D?.playing ? "⏸" : "▶";
-    tbPlay.title = viewer3D?.playing ? "Pause" : "Play";
+  if (floodCanvasOverlay) {
+    floodCanvasOverlay.setUrl(dataUrl);
+  } else {
+    floodCanvasOverlay = L.imageOverlay(dataUrl, mapPlayer.bounds, { opacity: 0.88 }).addTo(map);
   }
-  if (tbStepBack) tbStepBack.disabled = !hasResults;
-  if (tbStepFwd) tbStepFwd.disabled = !hasResults;
 }
 
-function setup3DToolbar() {
-  // 1. Camera Presets: Dam, Valley, Overview, Top, Reset
-  const camPresets = {
-    camDam: "dam",
-    camValley: "valley",
-    camOverview: "overview",
-    camTop: "top",
-    camReset: "reset",
-  };
-  Object.entries(camPresets).forEach(([btnId, preset]) => {
-    const el = document.getElementById(btnId);
-    if (!el) return;
-    el.addEventListener("click", () => {
-      document.querySelectorAll(".toolbar-view .toolbar-btn").forEach((b) => b.classList.remove("active"));
-      el.classList.add("active");
-      viewer3D?.setCameraPreset(preset);
-    });
-  });
-
-  // 3. Layer Controls: Water, Depth, Velocity, Arrival, Risk
-  const renderModes = {
-    modeRealistic: "realistic",
-    modeDepth: "depth",
-    modeVelocity: "velocity",
-    modeArrival: "arrival",
-    modeRisk: "risk",
-  };
-  Object.entries(renderModes).forEach(([btnId, mode]) => {
-    const el = document.getElementById(btnId);
-    if (!el) return;
-    el.addEventListener("click", () => {
-      document.querySelectorAll(".toolbar-layer .toolbar-btn").forEach((b) => b.classList.remove("active"));
-      el.classList.add("active");
-      viewer3D?.setColorMode(mode);
-      updateHeatmapLegend(mode);
-    });
-  });
-
-  // 4. Time Controls: ⏮ previous · ▶ play / ⏸ pause · ⏭ next
-  const tbPlay = document.getElementById("tbPlay");
-  const tbStepBack = document.getElementById("tbStepBack");
-  const tbStepFwd = document.getElementById("tbStepFwd");
-
-  tbStepBack?.addEventListener("click", () => {
-    if (!viewer3D || !hasSimulationResults()) return;
-    viewer3D.pause();
-    viewer3D.step(-1);
-    syncTimeButtons();
-  });
-
-  tbStepFwd?.addEventListener("click", () => {
-    if (!viewer3D || !hasSimulationResults()) return;
-    viewer3D.pause();
-    viewer3D.step(1);
-    syncTimeButtons();
-  });
-
-  tbPlay?.addEventListener("click", () => {
-    if (!viewer3D || !hasSimulationResults()) return;
-    if (viewer3D.playing) viewer3D.pause();
-    else viewer3D.play();
-    syncTimeButtons();
-  });
-
-  // 5. Metrics Drawer Toggle (Slides up from bottom ~25-30% screen, viewport resizes)
-  const toggleMetricsBtn = document.getElementById("tbToggleMetrics");
-  toggleMetricsBtn?.addEventListener("click", () => {
-    viewer3D?.uiController?.toggleMetricsDrawer();
-  });
-  document.getElementById("drawerCloseBtn")?.addEventListener("click", () => {
-    viewer3D?.uiController?.toggleMetricsDrawer(false);
-  });
+function plotSettlementPOIs(pois) {
+  // Deliberately empty: Polygon on map is strictly clean with NO addons (no village/settlement markers).
+  if (poiMarkersLayer) {
+    poiMarkersLayer.clearLayers();
+  }
 }
 
-function updateHeatmapLegend(mode) {
-  const legend = document.getElementById("heatmapLegend");
-  const title = document.getElementById("legendTitle");
-  const unit = document.getElementById("legendUnit");
-  const bar = document.getElementById("legendBar");
-  const labels = document.getElementById("legendLabels");
-  if (!legend || !title || !unit || !bar || !labels) return;
 
-  if (mode === "realistic") {
-    legend.style.display = "none";
+// ---------------------------------------------------------------------------
+// Live Map Point Probe HUD
+// ---------------------------------------------------------------------------
+function onMapHover(e) {
+  if (!mapPlayer.totalFrames || !mapPlayer.bounds || !mapPlayer.demBounds) {
+    document.getElementById("gisProbeHud").style.display = "none";
     return;
   }
 
-  legend.style.display = "flex";
-  if (mode === "depth") {
-    title.textContent = "Water Depth";
-    unit.textContent = "m";
-    bar.style.background = "linear-gradient(to right, #1c5f9e, #1fb0c4, #3fae55, #f5c542, #e8791a, #8a1010)";
-    labels.innerHTML = `
-      <span>0m</span>
-      <span>0.5m</span>
-      <span>1.5m</span>
-      <span>3m</span>
-      <span>5m</span>
-      <span>8m+</span>
-    `;
-  } else if (mode === "velocity") {
-    title.textContent = "Flow Velocity";
-    unit.textContent = "m/s";
-    bar.style.background = "linear-gradient(to right, #1c5f9e, #3fae55, #f5c542, #e8791a, #c81e1e)";
-    labels.innerHTML = `
-      <span>0</span>
-      <span>1.0</span>
-      <span>2.5</span>
-      <span>4.0</span>
-      <span>6+ m/s</span>
-    `;
-  } else if (mode === "arrival") {
-    title.textContent = "Arrival Time";
-    unit.textContent = "rel";
-    bar.style.background = "linear-gradient(to right, #e91e63, #ff9800, #ffeb3b, #4caf50, #00bcd4)";
-    labels.innerHTML = `
-      <span>Early (t₀)</span>
-      <span>Mid</span>
-      <span>Late</span>
-    `;
-  } else if (mode === "risk") {
-    title.textContent = "Hydraulic Risk (d × v)";
-    unit.textContent = "index";
-    bar.style.background = "linear-gradient(to right, #4caf50, #ffeb3b, #ff9800, #f44336)";
-    labels.innerHTML = `
-      <span>Low (&lt;0.5)</span>
-      <span>Med (1.0)</span>
-      <span>High (2.5)</span>
-      <span>Crit (&gt;3)</span>
-    `;
-  }
-}
+  const b = mapPlayer.demBounds;
+  const lat = e.latlng.lat;
+  const lon = e.latlng.lng;
 
-function onFrameChange(index, hours) {
-  const label = document.getElementById("tbTimeLabel");
-  if (label) label.textContent = `${(hours || 0).toFixed(2)} hr`;
-  if (viewer3D && !viewer3D.playing) {
-    document.getElementById("tbPlay").textContent = "▶";
+  if (lat < b.south || lat > b.north || lon < b.west || lon > b.east) {
+    document.getElementById("gisProbeHud").style.display = "none";
+    return;
   }
-}
 
-function onTerrainProbe(info) {
-  const card = document.getElementById("probeCard");
-  const text = document.getElementById("probeText");
-  if (!info) { card.style.display = "none"; return; }
-  card.style.display = "block";
-  const velStr = (info.velocity !== null && info.velocity !== undefined)
-    ? ` | Vel: ${info.velocity.toFixed(2)} m/s`
-    : "";
-  text.textContent = `Elev: ${info.elevation.toFixed(1)}m | Depth: ${info.depth.toFixed(2)}m${velStr} | WSE: ${info.waterSurface.toFixed(1)}m`;
+  const depthGrid = mapPlayer.frames[mapPlayer.currentFrame];
+  if (!depthGrid) return;
+  const rows = depthGrid.length;
+  const cols = depthGrid[0].length;
+
+  const r = Math.floor(((b.north - lat) / (b.north - b.south)) * rows);
+  const c = Math.floor(((lon - b.west) / (b.east - b.west)) * cols);
+
+  if (r < 0 || r >= rows || c < 0 || c >= cols) {
+    document.getElementById("gisProbeHud").style.display = "none";
+    return;
+  }
+
+  const d = depthGrid[r][c];
+  const v = mapPlayer.velocityFrames[mapPlayer.currentFrame] ? mapPlayer.velocityFrames[mapPlayer.currentFrame][r][c] : 0;
+  const rk = mapPlayer.riskFrames[mapPlayer.currentFrame] ? mapPlayer.riskFrames[mapPlayer.currentFrame][r][c] : 0;
+  const arr = mapPlayer.arrivalGrid ? mapPlayer.arrivalGrid[r][c] : -1;
+
+  const hud = document.getElementById("gisProbeHud");
+  hud.style.display = "block";
+  document.getElementById("probeDepthVal").textContent = `${d.toFixed(2)} m`;
+  document.getElementById("probeVelVal").textContent = `${v.toFixed(2)} m/s`;
+  document.getElementById("probeRiskVal").textContent = rk === 4 ? "Critical" : rk === 3 ? "High" : rk === 2 ? "Moderate" : d > 0.05 ? "Low" : "Dry";
+  document.getElementById("probeArrivalVal").textContent = arr > 0 ? `${arr} min` : d > 0.05 ? "Submerged" : "—";
+  document.getElementById("probeCoordsVal").textContent = `${lat.toFixed(4)}°N, ${lon.toFixed(4)}°E`;
 }
 
 // ---------------------------------------------------------------------------
-// PDF Export
+// PDF Report Export (.pdf Format)
 // ---------------------------------------------------------------------------
-async function exportReport() {
-  if (!S.simResult?.simulation_id) return;
+async function downloadPdf(simId) {
+  if (!simId) return;
+
+  const reportBtn = document.getElementById("exportReportBtn");
+  const modalDownloadBtn = document.getElementById("reportModalDownloadBtn");
+
+  if (reportBtn) reportBtn.textContent = "Generating PDF...";
+  if (modalDownloadBtn) modalDownloadBtn.innerHTML = '<span class="run-spinner"></span> Generating Official PDF...';
+
   try {
     const res = await fetch(`${API}/report/pdf`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ simulation_id: S.simResult.simulation_id }),
+      body: JSON.stringify({ simulation_id: simId }),
     });
-    if (!res.ok) throw new Error("Report generation failed");
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || `HTTP ${res.status}`);
+    }
+
     const blob = await res.blob();
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `dam_break_report_${S.simResult.simulation_id}.html`;
+
+    const damName = S.dam?.name || S.simResult?.dam_name || "Dam";
+    const safeDamName = damName.replace(/[^a-zA-Z0-9_\-]/g, "_");
+    const disp = res.headers.get("Content-Disposition");
+    let filename = `${safeDamName}_Dam_Break_Report.pdf`;
+    if (disp && disp.includes("filename=")) {
+      const m = disp.match(/filename=["']?([^"';]+)["']?/);
+      if (m && m[1]) filename = m[1];
+    }
+    a.download = filename;
     document.body.appendChild(a);
     a.click();
     a.remove();
     URL.revokeObjectURL(url);
   } catch (e) {
-    console.error("Export failed:", e);
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Scenario Comparison
-// ---------------------------------------------------------------------------
-async function showCompareFlow() {
-  if (!S.lastScenarioParams) { alert("Run a simulation first."); return; }
-  const baseMode = S.lastScenarioParams.failure_mode;
-  // Alternate against the next failure mode in the catalog (wraps around)
-  const modeValues = FAILURE_MODES.map((m) => m.value);
-  const altMode = modeValues[(modeValues.indexOf(baseMode) + 1) % modeValues.length] || "overtopping";
-
-  const confirmMsg = `Compare current "${baseMode}" scenario with "${altMode}" scenario for ${S.dam?.name || "this dam"}?`;
-  if (!confirm(confirmMsg)) return;
-
-  const btn = document.getElementById("compareBtn");
-  btn.textContent = "Comparing...";
-  btn.disabled = true;
-
-  try {
-    const scenarioA = { ...S.lastScenarioParams };
-    const scenarioB = { ...S.lastScenarioParams, failure_mode: altMode };
-
-    const res = await fetch(`${API}/compare`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        scenarios: [scenarioA, scenarioB],
-        labels: [`${baseMode} (current)`, `${altMode} (comparison)`],
-      }),
-    });
-    if (!res.ok) throw new Error((await res.json().catch(() => ({}))).detail || "Comparison failed");
-
-    const data = await res.json();
-    showCompareResults(data);
-  } catch (e) {
-    alert(`Comparison failed: ${e.message}`);
+    console.error("PDF Export failed:", e);
+    alert(`Failed to download PDF report: ${e.message}`);
   } finally {
-    btn.textContent = "Compare Scenarios";
-    btn.disabled = false;
+    if (reportBtn) reportBtn.textContent = "Export Report";
+    if (modalDownloadBtn) modalDownloadBtn.innerHTML = `
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      Download Official PDF Report (.pdf)
+    `;
   }
 }
 
-function showCompareResults(data) {
-  // Build comparison modal/overlay
-  const overlay = document.createElement("div");
-  overlay.className = "compare-overlay";
-  overlay.innerHTML = `
-    <div class="compare-card">
-      <div class="compare-header">
-        <h3>Scenario Comparison</h3>
-        <button class="compare-close" onclick="this.closest('.compare-overlay').remove()">&times;</button>
+async function exportReport() {
+  if (!S.simResult) return;
+  showReportModal(S.simResult);
+  if (S.simResult.simulation_id) {
+    downloadPdf(S.simResult.simulation_id);
+  }
+}
+
+function setupReportModal() {
+  const modal = document.getElementById("reportModal");
+  const closeBtn = document.getElementById("reportModalClose");
+  const footerCloseBtn = document.getElementById("reportModalCloseBtn");
+  const downloadBtn = document.getElementById("reportModalDownloadBtn");
+
+  closeBtn?.addEventListener("click", () => {
+    modal.style.display = "none";
+  });
+  footerCloseBtn?.addEventListener("click", () => {
+    modal.style.display = "none";
+  });
+  modal?.addEventListener("click", (e) => {
+    if (e.target === modal) modal.style.display = "none";
+  });
+  downloadBtn?.addEventListener("click", () => {
+    if (S.simResult?.simulation_id) {
+      downloadPdf(S.simResult.simulation_id);
+    }
+  });
+}
+
+function showReportModal(data) {
+  const modal = document.getElementById("reportModal");
+  const body = document.getElementById("reportModalBody");
+  if (!modal || !body) return;
+
+  const breach = data.breach || {};
+  const summary = data.summary || {};
+  const hyd = data.hydraulic_parameters || {};
+  const pois = summary.points_of_interest || [];
+
+  body.innerHTML = `
+    <div style="font-family: var(--font-ui); color: var(--text-1);">
+      <div style="background: var(--surface-2); border: 1px solid var(--border-1); border-radius: 6px; padding: 12px 16px; margin-bottom: 16px;">
+        <div style="font-size: 16px; font-weight: 700; color: var(--text-0);">${data.dam_name || "Dam"} — Dam Break Simulation</div>
+        <div style="font-size: 11px; color: var(--text-3); margin-top: 2px;">Failure Mode: <b style="text-transform: capitalize; color: var(--text-1);">${data.failure_mode}</b> | Simulation ID: <code style="font-family: var(--font-mono);">${data.simulation_id}</code></div>
       </div>
-      <div class="compare-body">
-        <table class="compare-table">
-          <thead>
-            <tr>
-              <th>Metric</th>
-              ${data.scenarios.map(s => `<th>${s.label}</th>`).join("")}
-              <th>Delta</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td>Peak Outflow</td>
-              ${data.scenarios.map(s => `<td>${s.breach.peak_outflow_cms} m³/s</td>`).join("")}
-              <td>${(data.scenarios[1].breach.peak_outflow_cms - data.scenarios[0].breach.peak_outflow_cms).toFixed(1)} m³/s</td>
-            </tr>
-            <tr>
-              <td>Flood Area</td>
-              ${data.scenarios.map(s => `<td>${s.summary.max_inundated_area_km2} km²</td>`).join("")}
-              <td class="${data.delta.area_km2 > 0 ? 'delta-bad' : 'delta-good'}">${data.delta.area_km2 > 0 ? '+' : ''}${data.delta.area_km2} km²</td>
-            </tr>
-            <tr>
-              <td>Max Depth</td>
-              ${data.scenarios.map(s => `<td>${s.summary.max_flood_depth_m} m</td>`).join("")}
-              <td class="${data.delta.peak_depth_m > 0 ? 'delta-bad' : 'delta-good'}">${data.delta.peak_depth_m > 0 ? '+' : ''}${data.delta.peak_depth_m} m</td>
-            </tr>
-          </tbody>
-        </table>
-        ${data.village_delta.length ? `
-          <h4 style="margin:12px 0 8px;color:var(--text-0);font-size:13px;">Settlement Arrival Time Changes</h4>
-          <table class="compare-table">
-            <thead><tr><th>Settlement</th><th>Scenario A</th><th>Scenario B</th><th>Delta</th></tr></thead>
-            <tbody>
-              ${data.village_delta.map(v => `
-                <tr>
-                  <td>${v.name}</td>
-                  <td>${v.arrival_a_min != null ? v.arrival_a_min + ' min' : '—'}</td>
-                  <td>${v.arrival_b_min != null ? v.arrival_b_min + ' min' : '—'}</td>
-                  <td class="${(v.delta_min || 0) < 0 ? 'delta-bad' : 'delta-good'}">${v.delta_min != null ? (v.delta_min > 0 ? '+' : '') + v.delta_min + ' min' : '—'}</td>
-                </tr>
-              `).join("")}
-            </tbody>
-          </table>
-        ` : ""}
-        <div style="margin-top:12px;font-size:11px;color:var(--text-3);">Computed in ${(data.elapsed_ms / 1000).toFixed(1)} s</div>
+
+      <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 16px;">
+        <div style="background: var(--surface-0); border: 1px solid var(--border-1); padding: 10px; border-radius: 6px;">
+          <div style="font-size: 10px; text-transform: uppercase; color: var(--text-3);">Peak Breach Outflow</div>
+          <div style="font-size: 18px; font-weight: 700; color: var(--sonar); font-family: var(--font-mono);">${breach.peak_outflow_cms || "—"} m³/s</div>
+        </div>
+        <div style="background: var(--surface-0); border: 1px solid var(--border-1); padding: 10px; border-radius: 6px;">
+          <div style="font-size: 10px; text-transform: uppercase; color: var(--text-3);">Max Inundated Area</div>
+          <div style="font-size: 18px; font-weight: 700; color: var(--text-0); font-family: var(--font-mono);">${summary.max_inundated_area_km2 || "—"} km²</div>
+        </div>
+        <div style="background: var(--surface-0); border: 1px solid var(--border-1); padding: 10px; border-radius: 6px;">
+          <div style="font-size: 10px; text-transform: uppercase; color: var(--text-3);">Max Flood Depth</div>
+          <div style="font-size: 18px; font-weight: 700; color: var(--alert); font-family: var(--font-mono);">${summary.max_flood_depth_m || "—"} m</div>
+        </div>
+      </div>
+
+      <h4 style="font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-2); margin-bottom: 8px;">Downstream Hydrologic Corridor Assessment</h4>
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px;">
+        <div style="background: var(--surface-2); border: 1px solid var(--border-1); padding: 10px; border-radius: 6px;">
+          <div style="font-size: 10px; color: var(--text-3); text-transform: uppercase;">Facility & River Basin</div>
+          <div style="font-size: 13px; font-weight: 600; color: var(--text-0); margin-top: 2px;">${S.dam?.name || data.dam_name || "Dam"} (${S.dam?.river || data.river || "River Reach"})</div>
+          <div style="font-size: 11px; color: var(--text-2); margin-top: 2px;">${S.dam?.state || data.state || "National"} · ${S.dam?.latitude ? S.dam.latitude.toFixed(4) + '°N, ' + S.dam.longitude.toFixed(4) + '°E' : 'GIS Origin'}</div>
+        </div>
+        <div style="background: var(--surface-2); border: 1px solid var(--border-1); padding: 10px; border-radius: 6px;">
+          <div style="font-size: 10px; color: var(--text-3); text-transform: uppercase;">Breach & Terrain Mechanics</div>
+          <div style="font-size: 13px; font-weight: 600; color: var(--text-0); margin-top: 2px;">${data.failure_mode || "Piping"} Mode · Froehlich Equations</div>
+          <div style="font-size: 11px; color: var(--text-2); margin-top: 2px;">Breach Width: ${breach.breach_width_m || hyd.breach_width_m || "—"} m · Formation: ${breach.breach_formation_time_min || hyd.breach_formation_time_min || "—"} min</div>
+        </div>
+      </div>
+
+      <div style="background: rgba(239, 68, 68, 0.08); border-left: 3px solid var(--critical); padding: 8px 12px; font-size: 11px; line-height: 1.5; color: var(--text-1);">
+        <b>Emergency Action Directive:</b> Immediate evacuation orders recommended for settlements within the 10km downstream corridor. Alert local district disaster management authorities immediately.
       </div>
     </div>
   `;
-  document.body.appendChild(overlay);
+
+  modal.style.display = "flex";
 }
 
 // ---------------------------------------------------------------------------
@@ -1149,29 +1570,23 @@ function showCompareResults(data) {
 // ---------------------------------------------------------------------------
 function showError(err) {
   document.getElementById("errorSection").style.display = "block";
-  let msg = err.message || "Unknown error";
-  if (msg.includes("HTTP 502")) msg = "DEM download failed. Check network connection.";
-  else if (msg.includes("HTTP 503")) msg = "API service unavailable.";
-  else if (msg.includes("timeout")) msg = "Simulation timed out.";
-  else if (msg.includes("fetch")) msg = "Network unavailable.";
+  let msg = err.message || "Unknown error occurred";
+  if (msg.includes("HTTP 502")) msg = "DEM acquisition failed. Check network connection.";
+  else if (msg.includes("HTTP 503")) msg = "Simulation service currently busy.";
   document.getElementById("errorMessage").textContent = msg;
   console.error("[Simulation Error]", err);
   dashboard?.setFailed();
   setDrawerStatus("failed");
-  syncTimeButtons();
 }
 
-// ---------------------------------------------------------------------------
-// Drawer status helper — Idle / Running / Completed / Failed
-// ---------------------------------------------------------------------------
 function setDrawerStatus(state) {
   const badge = document.getElementById("drawerStatusBadge");
   if (!badge) return;
   const map = {
-    idle:      { text: "Idle",      cls: "idle" },
-    running:   { text: "Running",   cls: "running" },
+    idle: { text: "Idle", cls: "idle" },
+    running: { text: "Running", cls: "running" },
     completed: { text: "Completed", cls: "completed" },
-    failed:    { text: "Failed",    cls: "failed" },
+    failed: { text: "Failed", cls: "failed" },
   };
   const s = map[state] || map.idle;
   badge.textContent = s.text;
@@ -1180,5 +1595,6 @@ function setDrawerStatus(state) {
   badge.dataset.status = state;
 }
 
-// Expose loadRivers globally for retry button
+// Expose globally for HTML onclick handlers
 window.loadRivers = loadRivers;
+window.exportReport = exportReport;

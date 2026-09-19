@@ -163,15 +163,12 @@ def test_full_simulation_flow(client):
     ra = client.post("/ai/analyze", json={"simulation_id": sim_id})
     assert ra.status_code in (200, 502, 503)
 
-    # Report export works (AI or fallback path)
+    # Report export works (generates real .pdf binary stream)
     rp = client.post("/report/pdf", json={"simulation_id": sim_id})
     assert rp.status_code == 200
-    assert rp.content[:15] == b"<!DOCTYPE html>"
-    # XSS guard: hostile dam names arrive escaped
-    assert b"<script>" not in rp.content
-
-    # HTML report never contains raw newlines from markdown (converted to <br>)
-    assert b"\n###" not in rp.content
+    assert rp.content.startswith(b"%PDF")
+    assert len(rp.content) > 1000
+    assert "application/pdf" in rp.headers.get("content-type", "")
 
 
 def test_report_unknown_sim_404(client):

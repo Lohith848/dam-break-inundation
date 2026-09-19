@@ -10,10 +10,10 @@
 | `POST` | `/simulate` | Synchronous hydrodynamic simulation run |
 | `POST` | `/simulate/start` | Launch asynchronous simulation job returning `job_id` |
 | `GET` | `/simulate/stream/{job_id}` | SSE stream emitting step-by-step progress and final payload |
-| `GET` | `/api/assets/config` | Discovered digital-twin 3D models and metadata |
-| `POST` | `/api/assets/reload` | Rescan assets tree on disk |
+| `POST` | `/report/pdf` | Generate official 13-section CWC/NDMA government PDF report |
+| `POST` | `/ai/chat` | Query civil/hydraulic engineering AI copilot via Groq LPU |
 | `GET` | `/weather/rainfall` | Fetch live precipitation and 24h forecast from Open-Meteo |
-| `POST` | `/report` | Generate downloadable HTML dam break summary report |
+| `POST` | `/compare` | Multi-scenario comparative flood wave analysis |
 
 ## 2. Asynchronous Simulation Flow (Server-Sent Events)
 

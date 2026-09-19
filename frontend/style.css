@@ -413,11 +413,12 @@ html, body {
    STAGE
    ═══════════════════════════════════════════════════════════════════════════ */
 
-.stage { flex: 1; display: flex; flex-direction: column; position: relative; overflow: hidden; background: var(--surface-0); }
-.viewport-canvas { flex: 1; position: relative; width: 100%; height: 100%; }
+.stage { flex: 1; display: flex; flex-direction: column; position: relative; overflow: hidden; background: var(--surface-0); min-width: 0; min-height: 0; }
+.viewport-canvas { flex: 1; position: relative; width: 100%; height: 100%; min-width: 0; min-height: 0; }
 #threeViewport { display: flex; flex-direction: column; position: relative; width: 100%; height: 100%; overflow: hidden; }
 #threeContainer { flex: 1; width: 100%; height: calc(100% - 56px); position: relative; overflow: hidden; }
-.canvas-anchor, .map-anchor { width: 100%; height: 100%; }
+.canvas-anchor { width: 100%; height: 100%; }
+.map-anchor, #map { position: absolute; top: 0; left: 0; right: 0; bottom: 0; width: 100%; height: 100%; z-index: 1; }
 .hidden-viewport { display: none !important; }
 .workspace.split-active .stage { display: flex; flex-direction: row; }
 .workspace.split-active #threeViewport,
@@ -427,80 +428,449 @@ html, body {
    AI COPILOT
    ═══════════════════════════════════════════════════════════════════════════ */
 
-.ai-panel {
-  position: fixed; top: 48px; right: 0; width: 420px; height: calc(100vh - 48px);
-  background: var(--surface-1); border-left: 1px solid var(--border-1);
-  display: flex; flex-direction: column; z-index: 60;
-  transform: translateX(100%); transition: transform var(--dur) var(--ease);
+/* ═══════════════════════════════════════════════════════════════════════════
+   ENGINEERING COPILOT — Small Bottom-Corner Floating Panel (GIS Style)
+   Small panel (480px), NOT long screen.
+   Dam icon trigger at bottom corner.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.copilot-widget {
+  position: fixed;
+  bottom: 18px;
+  right: 18px;
+  z-index: 1050;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  pointer-events: none;
 }
-.ai-panel.open { transform: translateX(0); }
-.ai-panel-header { display: flex; align-items: center; justify-content: space-between; padding: var(--sp-3) var(--sp-4); border-bottom: 1px solid var(--border-1); background: var(--surface-2); }
-.ai-panel-title { display: flex; align-items: center; gap: var(--sp-2); font-size: 13px; font-weight: 600; color: var(--text-0); }
-.ai-panel-title svg { color: var(--sonar); }
-.ai-panel-close { background: transparent; border: none; color: var(--text-3); cursor: pointer; padding: var(--sp-1); font-size: 16px; line-height: 1; }
-.ai-panel-close:hover { color: var(--text-0); }
 
-.ai-tabs { display: flex; border-bottom: 1px solid var(--border-1); padding: 0 var(--sp-2); overflow-x: auto; }
-.ai-tab { background: transparent; border: none; border-bottom: 2px solid transparent; color: var(--text-3); font-family: var(--font-mono); font-size: 11px; font-weight: 500; padding: var(--sp-3); cursor: pointer; white-space: nowrap; transition: color var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease); }
-.ai-tab:hover { color: var(--text-2); }
-.ai-tab.active { color: var(--sonar); border-bottom-color: var(--sonar); }
-
-.ai-panel-body { flex: 1; overflow-y: auto; display: flex; flex-direction: column; }
-.ai-tab-content { display: none; flex: 1; flex-direction: column; padding: var(--sp-4); overflow-y: auto; }
-.ai-tab-content.active { display: flex; }
-.ai-status { font-family: var(--font-mono); font-size: 11px; color: var(--text-3); padding: var(--sp-2) var(--sp-3); background: var(--surface-0); border: 1px solid var(--border-1); margin-bottom: var(--sp-3); }
-.ai-content { font-size: 13px; line-height: 1.65; color: var(--text-2); white-space: pre-wrap; }
-.ai-content h1, .ai-content h2, .ai-content h3 { color: var(--text-0); font-weight: 600; margin: var(--sp-4) 0 var(--sp-2) 0; }
-.ai-content h1 { font-size: 16px; } .ai-content h2 { font-size: 14px; } .ai-content h3 { font-size: 13px; }
-.ai-content ul, .ai-content ol { padding-left: 20px; margin: var(--sp-2) 0; }
-.ai-content li { margin: var(--sp-1) 0; }
-.ai-content strong { color: var(--text-0); font-weight: 600; }
-.ai-content code { font-family: var(--font-mono); font-size: 11px; background: var(--surface-0); padding: 1px 4px; color: var(--sonar); }
-.ai-content table { width: 100%; border-collapse: collapse; margin: var(--sp-3) 0; font-size: 12px; }
-.ai-content th, .ai-content td { padding: var(--sp-1) var(--sp-2); border: 1px solid var(--border-1); text-align: left; }
-.ai-content th { background: var(--surface-2); color: var(--text-3); font-weight: 600; font-family: var(--font-mono); font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; }
-
-.ai-chat-messages { flex: 1; overflow-y: auto; padding: var(--sp-3) 0; display: flex; flex-direction: column; gap: var(--sp-2); }
-.ai-chat-welcome { text-align: center; padding: var(--sp-5); color: var(--text-3); font-size: 13px; }
-.ai-chat-welcome p { margin-bottom: var(--sp-4); }
-.ai-suggested-questions { display: flex; flex-direction: column; gap: var(--sp-1); }
-.ai-suggested-q { background: var(--surface-0); border: 1px solid var(--border-1); padding: var(--sp-2) var(--sp-3); font-size: 12px; color: var(--text-2); cursor: pointer; transition: all var(--dur-fast) var(--ease); text-align: left; }
-.ai-suggested-q:hover { border-color: var(--sonar); color: var(--text-0); }
-
-.ai-msg { padding: var(--sp-2) var(--sp-3); font-size: 13px; line-height: 1.55; max-width: 95%; }
-.ai-msg-user { background: var(--sonar); color: var(--surface-0); align-self: flex-end; }
-.ai-msg-assistant { background: var(--surface-0); border: 1px solid var(--border-1); color: var(--text-2); align-self: flex-start; white-space: pre-wrap; }
-.ai-msg-loading { color: var(--text-3); font-style: italic; }
-
-.ai-chat-input-area { display: flex; gap: var(--sp-2); padding: var(--sp-3) 0 0 0; border-top: 1px solid var(--border-1); }
-.ai-chat-input { flex: 1; background: var(--surface-0); border: 1px solid var(--border-1); color: var(--text-0); font-family: var(--font-ui); font-size: 13px; padding: var(--sp-2) var(--sp-3); outline: none; }
-.ai-chat-input:focus { border-color: var(--sonar); }
-.ai-chat-send { width: 36px; height: 36px; background: var(--sonar); border: none; color: var(--surface-0); display: flex; align-items: center; justify-content: center; cursor: pointer; transition: opacity var(--dur-fast) var(--ease); }
-.ai-chat-send:hover { opacity: 0.8; }
-
-.ai-toggle-btn {
-  position: fixed; bottom: var(--sp-5); right: var(--sp-5); width: 40px; height: 40px;
-  background: var(--surface-2); border: 1px solid var(--border-1); color: var(--sonar);
-  display: flex; align-items: center; justify-content: center; cursor: pointer; z-index: 55;
+/* Bottom Launcher Button with Dam Icon */
+.copilot-bottom-trigger {
+  pointer-events: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--surface-1);
+  border: 1px solid var(--border-2);
+  color: var(--text-0);
+  font-family: var(--font-ui);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  padding: 8px 14px;
+  border-radius: 6px;
+  cursor: pointer;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.45);
   transition: all var(--dur-fast) var(--ease);
+}
+
+.copilot-bottom-trigger:hover {
+  background: var(--surface-2);
+  border-color: var(--sonar);
+  color: var(--sonar);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px rgba(74, 158, 255, 0.2);
+}
+
+.copilot-bottom-trigger.active {
+  background: var(--surface-2);
+  border-color: var(--sonar);
+  color: var(--sonar);
+  box-shadow: 0 0 0 1px var(--sonar), 0 6px 20px rgba(0, 0, 0, 0.4);
+}
+
+.copilot-bottom-trigger .dam-icon {
+  color: var(--sonar);
+  flex-shrink: 0;
+}
+
+/* Small Bottom-Corner Panel (NOT long screen - compact 480px card) */
+.copilot-small-panel {
+  pointer-events: auto;
+  position: absolute;
+  bottom: 46px;
+  right: 0;
+  width: 360px;
+  max-width: calc(100vw - 36px);
+  height: 480px;
+  max-height: calc(100vh - 90px);
+  background: var(--surface-1);
+  border: 1px solid var(--border-2);
+  border-radius: 6px;
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.55), 0 0 1px rgba(255, 255, 255, 0.1);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  margin-bottom: 8px;
+  animation: copilotCardPop 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes copilotCardPop {
+  from { opacity: 0; transform: translateY(12px) scale(0.97); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* Copilot Header */
+.copilot-header {
+  height: 42px;
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 var(--sp-4);
+  border-bottom: 1px solid var(--border-0);
+  background: var(--surface-1);
+  flex-shrink: 0;
+}
+
+.copilot-title {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-0);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.copilot-ai-badge {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 600;
+  color: #38bdf8;
+  background: rgba(56, 189, 248, 0.12);
+  border: 1px solid rgba(56, 189, 248, 0.28);
+  padding: 1px 5px;
+  border-radius: 3px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  margin-left: 2px;
+}
+
+.copilot-title svg {
+  color: var(--sonar);
+}
+
+.copilot-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.copilot-btn-icon {
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  color: var(--text-3);
+  cursor: pointer;
+  transition: all var(--dur-fast) var(--ease);
+}
+
+.copilot-btn-icon:hover {
+  background: var(--surface-2);
+  color: var(--text-0);
+}
+
+/* Essential Simulation Summary (Default View) */
+.copilot-summary-block {
+  padding: 10px 14px;
+  background: var(--surface-0);
+  border-bottom: 1px solid var(--border-0);
+  flex-shrink: 0;
+}
+
+.copilot-summary-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.copilot-kv {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.copilot-k {
+  color: var(--text-3);
+  min-width: 90px;
+  font-weight: 500;
+  flex-shrink: 0;
+}
+
+.copilot-v {
+  color: var(--text-1);
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.copilot-v.active {
+  color: var(--sonar);
+}
+
+/* Quick Actions: 6 Compact Buttons */
+.copilot-actions {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 5px;
+  padding: 8px 12px;
+  background: var(--surface-1);
+  border-bottom: 1px solid var(--border-0);
+  flex-shrink: 0;
+}
+
+.copilot-action-btn {
+  background: var(--surface-2);
+  border: 1px solid var(--border-1);
+  color: var(--text-2);
+  font-family: var(--font-ui);
+  font-size: 10.5px;
+  font-weight: 500;
+  padding: 5px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: all var(--dur-fast) var(--ease);
+}
+
+.copilot-action-btn:hover {
+  background: var(--surface-3);
+  border-color: var(--border-2);
+  color: var(--text-0);
+}
+
+.copilot-action-btn:active {
+  color: var(--sonar);
+  border-color: var(--sonar);
+}
+
+/* Primary Conversation Stream */
+.copilot-stream {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background: var(--surface-1);
+}
+
+.copilot-stream::-webkit-scrollbar {
+  width: 4px;
+}
+.copilot-stream::-webkit-scrollbar-track {
+  background: transparent;
+}
+.copilot-stream::-webkit-scrollbar-thumb {
+  background: var(--border-1);
+  border-radius: 2px;
+}
+
+.copilot-welcome-prompt {
+  font-size: 11.5px;
+  color: var(--text-3);
+  font-style: italic;
+  padding: 8px 0;
+  text-align: center;
+}
+
+/* Message Styles */
+.copilot-msg {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-width: 100%;
+}
+
+.copilot-msg-user {
+  align-self: flex-end;
+  max-width: 88%;
+}
+
+.copilot-msg-user .copilot-msg-bubble {
+  background: var(--surface-3);
+  border: 1px solid var(--border-2);
+  color: var(--text-0);
+  border-radius: 4px;
+  padding: 6px 10px;
+  font-size: 11.5px;
+  line-height: 1.45;
+  word-break: break-word;
+}
+
+.copilot-msg-ai {
+  align-self: flex-start;
+  width: 100%;
+}
+
+.copilot-msg-ai .copilot-msg-bubble {
+  background: var(--surface-0);
+  border: 1px solid var(--border-0);
+  border-left: 2px solid var(--sonar);
+  color: var(--text-1);
+  border-radius: 2px 4px 4px 2px;
+  padding: 8px 11px;
+  font-size: 11.5px;
+  line-height: 1.5;
+  word-break: break-word;
+}
+
+.copilot-msg-bubble strong {
+  color: var(--text-0);
+  font-weight: 600;
+}
+
+.copilot-msg-bubble code {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  background: var(--surface-2);
+  padding: 1px 4px;
+  border-radius: 3px;
+  color: var(--sonar);
+}
+
+.copilot-msg-bubble ul, .copilot-msg-bubble ol {
+  padding-left: 14px;
+  margin: 4px 0;
+}
+
+.copilot-msg-bubble li {
+  margin-bottom: 2px;
+}
+
+/* Groq AI Rendered Markdown Table */
+.copilot-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 6px 0;
+  font-size: 10.5px;
+  font-family: var(--font-mono);
+}
+
+.copilot-table th,
+.copilot-table td {
+  border: 1px solid var(--border-1);
+  padding: 4px 6px;
+  text-align: left;
+  line-height: 1.35;
+}
+
+.copilot-table th {
+  background: var(--surface-2);
+  color: var(--text-0);
+  font-weight: 600;
+}
+
+.copilot-table td {
+  background: var(--surface-0);
+  color: var(--text-1);
+}
+
+/* Typing Indicator */
+.copilot-typing {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  color: var(--text-3);
+  font-size: 10.5px;
+  font-family: var(--font-mono);
+  background: var(--surface-1);
+  border-top: 1px solid var(--border-0);
+}
+
+.copilot-typing-dots {
+  display: flex;
+  gap: 3px;
+}
+
+.copilot-typing-dot {
+  width: 4px;
+  height: 4px;
   border-radius: 50%;
+  background: var(--sonar);
+  animation: typingBounce 1.2s infinite ease-in-out;
+}
+.copilot-typing-dot:nth-child(2) { animation-delay: 0.2s; }
+.copilot-typing-dot:nth-child(3) { animation-delay: 0.4s; }
+
+@keyframes typingBounce {
+  0%, 80%, 100% { transform: translateY(0); opacity: 0.3; }
+  40% { transform: translateY(-4px); opacity: 1; }
 }
 
-/* Keep the AI button clear of the open metrics drawer */
-body.metrics-open .ai-toggle-btn { bottom: calc(25vh + 16px); }
-
-@media (max-width: 1100px) {
-  body.metrics-open .ai-toggle-btn { bottom: calc(30vh + 16px); }
+/* Fixed Input at Bottom */
+.copilot-footer {
+  padding: 8px 12px;
+  background: var(--surface-0);
+  border-top: 1px solid var(--border-0);
+  flex-shrink: 0;
 }
 
-@media (max-width: 860px) {
-  body.metrics-open .ai-toggle-btn { bottom: calc(40vh + 16px); }
+.copilot-input-form {
+  display: flex;
+  align-items: center;
+  background: var(--surface-1);
+  border: 1px solid var(--border-1);
+  border-radius: 4px;
+  padding: 0 4px 0 8px;
+  transition: border-color var(--dur-fast) var(--ease);
 }
-.ai-toggle-btn:hover { background: var(--surface-3); border-color: var(--sonar); }
-.ai-toggle-btn.panel-open { display: none; }
 
-.ai-loading { display: flex; align-items: center; gap: var(--sp-2); padding: var(--sp-3); color: var(--text-3); font-size: 12px; }
-.ai-loading::before { content: ''; width: 13px; height: 13px; border: 2px solid var(--border-1); border-top-color: var(--sonar); border-radius: 50%; animation: spin 0.7s linear infinite; }
+.copilot-input-form:focus-within {
+  border-color: var(--sonar);
+}
+
+.copilot-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  color: var(--text-0);
+  font-family: var(--font-ui);
+  font-size: 12px;
+  padding: 7px 4px;
+  outline: none;
+}
+
+.copilot-input::placeholder {
+  color: var(--text-3);
+}
+
+.copilot-send-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-2);
+  width: 26px;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  border-radius: 3px;
+  transition: all var(--dur-fast) var(--ease);
+}
+
+.copilot-send-btn:hover {
+  color: var(--sonar);
+  background: var(--surface-2);
+}
 
 /* ═══════════════════════════════════════════════════════════════════════════
    FIXED APPLICATION TOOLBAR (ArcGIS Pro / QGIS / Autodesk style)
@@ -1090,3 +1460,475 @@ body.metrics-open #threeContainer { height: calc(100% - 56px); }
     font-size: 24px;
   }
 }
+
+/* =============================================================================
+   MAP-BASED GIS ENGINE UI (SIH PRODUCTION STYLES — STRICTLY NO EMOJIS)
+   ============================================================================= */
+
+/* Navbar GIS Status Badge */
+.gis-status-badge {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--surface-0);
+  border: 1px solid var(--border-1);
+  border-radius: 20px;
+  padding: 4px 12px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-1);
+}
+.gis-badge-dot {
+  width: 7px;
+  height: 7px;
+  background: var(--sonar);
+  border-radius: 50%;
+  box-shadow: 0 0 6px var(--sonar);
+  animation: pulseDot 2s infinite ease-in-out;
+}
+@keyframes pulseDot {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.3); opacity: 0.7; }
+}
+
+/* Duration Selector Presets */
+.duration-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+.preset-pill {
+  background: var(--surface-2);
+  border: 1px solid var(--border-1);
+  color: var(--text-2);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  padding: 3px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all var(--dur-fast) var(--ease);
+}
+.preset-pill:hover {
+  color: var(--text-0);
+  border-color: var(--border-2);
+}
+.preset-pill.active {
+  background: var(--surface-3);
+  border-color: var(--sonar);
+  color: var(--sonar);
+  font-weight: 600;
+}
+.field-row-inline {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.field-unit {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-2);
+}
+
+/* Floating GIS Map Toolbar (Top Right) */
+.gis-map-toolbar {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  z-index: 1000;
+  background: rgba(22, 27, 34, 0.94);
+  backdrop-filter: blur(8px);
+  border: 1px solid var(--border-1);
+  border-radius: 6px;
+  padding: 6px 10px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+}
+.gis-toolbar-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.gis-toolbar-title {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-3);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.gis-btn-group {
+  display: flex;
+  gap: 2px;
+  background: var(--surface-0);
+  padding: 2px;
+  border-radius: 4px;
+  border: 1px solid var(--border-1);
+}
+.gis-layer-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-2);
+  font-family: var(--font-ui);
+  font-size: 11px;
+  font-weight: 500;
+  padding: 4px 10px;
+  border-radius: 3px;
+  cursor: pointer;
+  transition: all var(--dur-fast) var(--ease);
+}
+.gis-layer-btn:hover {
+  color: var(--text-0);
+}
+.gis-layer-btn.active {
+  background: var(--surface-3);
+  color: var(--sonar);
+  font-weight: 600;
+}
+
+/* Live Point Probe HUD (Cursor Inspection) */
+.gis-probe-hud {
+  position: absolute;
+  top: 64px;
+  left: 14px;
+  z-index: 1000;
+  background: rgba(15, 19, 24, 0.94);
+  backdrop-filter: blur(8px);
+  border: 1px solid var(--border-1);
+  border-radius: 6px;
+  padding: 8px 12px;
+  min-width: 190px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
+  pointer-events: none;
+}
+.gis-probe-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 6px;
+  border-bottom: 1px solid var(--border-0);
+  padding-bottom: 4px;
+}
+.gis-probe-dot {
+  width: 6px;
+  height: 6px;
+  background: var(--sonar);
+  border-radius: 50%;
+}
+.gis-probe-title {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-3);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+.gis-probe-metrics {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+.probe-metric {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+.pm-lbl {
+  color: var(--text-3);
+}
+.pm-val {
+  color: var(--text-0);
+  font-weight: 500;
+}
+.pm-coords {
+  font-size: 9px;
+  color: var(--text-2);
+}
+
+/* Floating Simulation Player HUD (Bottom Center) */
+.gis-player-hud {
+  position: absolute;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1000;
+  background: rgba(22, 27, 34, 0.96);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--border-1);
+  border-radius: 8px;
+  padding: 10px 16px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
+  width: min(720px, calc(100% - 40px));
+}
+.player-top-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.player-controls {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.player-btn {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface-2);
+  border: 1px solid var(--border-1);
+  border-radius: 4px;
+  color: var(--text-1);
+  cursor: pointer;
+  transition: all var(--dur-fast) var(--ease);
+}
+.player-btn:hover {
+  background: var(--surface-3);
+  color: var(--sonar);
+  border-color: var(--sonar);
+}
+.player-play-btn {
+  background: var(--sonar-dim);
+  border-color: var(--sonar);
+  color: var(--sonar);
+}
+.player-play-btn:hover {
+  background: var(--sonar);
+  color: #fff;
+}
+.player-timeline-wrapper {
+  flex: 1;
+  display: flex;
+  align-items: center;
+}
+.player-timeline-slider {
+  width: 100%;
+  height: 6px;
+  -webkit-appearance: none;
+  background: var(--surface-0);
+  border-radius: 3px;
+  outline: none;
+  border: 1px solid var(--border-1);
+  cursor: pointer;
+}
+.player-timeline-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 16px;
+  height: 16px;
+  background: var(--sonar);
+  border-radius: 50%;
+  cursor: pointer;
+  box-shadow: 0 0 6px rgba(74, 158, 255, 0.6);
+  transition: transform var(--dur-fast) var(--ease);
+}
+.player-timeline-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.2);
+}
+.player-info {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  min-width: 90px;
+}
+.player-timestamp {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-0);
+}
+.player-frame-badge {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--text-3);
+  letter-spacing: 0.04em;
+}
+.player-speed-group {
+  display: flex;
+  gap: 2px;
+  background: var(--surface-0);
+  border: 1px solid var(--border-1);
+  border-radius: 4px;
+  padding: 2px;
+}
+.speed-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-3);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  padding: 3px 6px;
+  border-radius: 3px;
+  cursor: pointer;
+}
+.speed-btn:hover {
+  color: var(--text-1);
+}
+.speed-btn.active {
+  background: var(--surface-3);
+  color: var(--sonar);
+  font-weight: 600;
+}
+
+/* Active GIS Layer Heatmap Legend */
+.gis-legend-card {
+  position: absolute;
+  bottom: 95px;
+  right: 14px;
+  z-index: 1000;
+  background: rgba(15, 19, 24, 0.94);
+  backdrop-filter: blur(8px);
+  border: 1px solid var(--border-1);
+  border-radius: 6px;
+  padding: 8px 12px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
+  min-width: 170px;
+}
+.gis-legend-title {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-2);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 6px;
+}
+.gis-legend-bar {
+  height: 8px;
+  border-radius: 3px;
+  margin-bottom: 4px;
+}
+.gis-legend-labels {
+  display: flex;
+  justify-content: space-between;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--text-3);
+}
+
+/* SIH PDF Report Modal */
+.report-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 2000;
+  background: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(6px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+.report-modal-card {
+  background: var(--surface-1);
+  border: 1px solid var(--border-1);
+  border-radius: 8px;
+  width: min(760px, 100%);
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.7);
+  overflow: hidden;
+}
+.report-modal-header {
+  height: 48px;
+  padding: 0 16px;
+  border-bottom: 1px solid var(--border-0);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--surface-2);
+}
+.report-modal-title-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-0);
+}
+.report-modal-close {
+  background: transparent;
+  border: none;
+  color: var(--text-3);
+  font-size: 20px;
+  cursor: pointer;
+  line-height: 1;
+}
+.report-modal-close:hover {
+  color: var(--text-0);
+}
+.report-modal-body {
+  padding: 20px;
+  overflow-y: auto;
+  flex: 1;
+  color: var(--text-1);
+  line-height: 1.6;
+}
+.report-modal-footer {
+  padding: 12px 16px;
+  border-top: 1px solid var(--border-0);
+  background: var(--surface-2);
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+/* Custom Leaflet Map Pulsing Dam Marker */
+.dam-pulse-marker {
+  position: relative;
+  width: 24px;
+  height: 24px;
+}
+.dam-pulse-circle {
+  width: 14px;
+  height: 14px;
+  background: #ef4444;
+  border: 2px solid #ffffff;
+  border-radius: 50%;
+  position: absolute;
+  top: 5px;
+  left: 5px;
+  box-shadow: 0 0 10px rgba(239, 68, 68, 0.8);
+}
+.dam-pulse-ring {
+  width: 24px;
+  height: 24px;
+  border: 2px solid #ef4444;
+  border-radius: 50%;
+  position: absolute;
+  top: 0;
+  left: 0;
+  animation: pulseRing 1.8s infinite cubic-bezier(0.215, 0.61, 0.355, 1);
+}
+@keyframes pulseRing {
+  0% { transform: scale(0.6); opacity: 1; }
+  100% { transform: scale(2.2); opacity: 0; }
+}
+
+/* Settlement Map Markers */
+.poi-map-marker {
+  background: rgba(15, 19, 24, 0.9);
+  border: 1px solid var(--border-1);
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-0);
+  white-space: nowrap;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.5);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.poi-status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+}
+.poi-status-critical { background: var(--critical); box-shadow: 0 0 6px var(--critical); }
+.poi-status-high { background: var(--alert); box-shadow: 0 0 6px var(--alert); }
+.poi-status-moderate { background: var(--sonar); }
+.poi-status-low { background: var(--success); }

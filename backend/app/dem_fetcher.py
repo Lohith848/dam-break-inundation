@@ -243,17 +243,17 @@ def fetch_dem_tile(
                 dem_type, south, north, west, east)
     t0 = time.time()
 
-    # Retry transient network failures (max 3 attempts, linear backoff).
-    max_attempts = 3
+    # Retry transient network failures (max 2 attempts, linear backoff).
+    max_attempts = 2
     response = None
     for attempt in range(1, max_attempts + 1):
         try:
-            response = requests.get(url, params=params, timeout=120, stream=True)
+            response = requests.get(url, params=params, timeout=25, stream=True)
             break
         except requests.exceptions.Timeout:
             logger.warning("OpenTopography timeout (attempt %d/%d)", attempt, max_attempts)
             if attempt == max_attempts:
-                raise RuntimeError("OpenTopography API request timed out (120s)")
+                raise RuntimeError("OpenTopography API request timed out (25s)")
         except requests.exceptions.ConnectionError as e:
             logger.warning("OpenTopography connection error (attempt %d/%d): %s",
                            attempt, max_attempts, e)

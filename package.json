@@ -1,0 +1,11 @@
+{
+  "name": "dam-break-inundation-root",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Dam Break Inundation Platform Root Workspace (SIH26161)",
+  "scripts": {
+    "dev": "npm run dev --prefix frontend",
+    "build": "npm run build --prefix frontend",
+    "preview": "npm run preview --prefix frontend"
+  }
+}

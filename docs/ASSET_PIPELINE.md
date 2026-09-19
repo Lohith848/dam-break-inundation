@@ -1,4 +1,6 @@
-# Asset Pipeline — Digital Twin Ingestion & Metadata Architecture
+# Asset Pipeline — Digital Twin Ingestion & Metadata Architecture (Roadmap)
+
+> **Implementation Status Note**: In the current production release, the platform operates with **Map-Based 2D Hydrodynamic Simulation** (Leaflet 2D GIS). This document specifies asset pipelines for the upcoming **3D Digital Twin Viewer & GLB models** scheduled for a post-SIH update. See [`docs/3D_IMPLEMENTATION_ROADMAP.md`](file:///c:/Users/Lohith%20G/Downloads/SIH_WINNING_PROJECT/dam-break-inundation/docs/3D_IMPLEMENTATION_ROADMAP.md) for full implementation details.
 
 ## 1. Directory Architecture
 Assets are structured cleanly inside `public/assets/`:

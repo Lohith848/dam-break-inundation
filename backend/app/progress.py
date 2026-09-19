@@ -73,13 +73,19 @@ class SimulateStartRequest(BaseModel):
     breach_width_m: Optional[float] = Field(default=None, gt=0)
     breach_formation_time_min: Optional[float] = Field(default=None, gt=0)
     manning_n: float = Field(default=0.045, gt=0, lt=0.2)
-    total_sim_hours: float = Field(default=3.0, gt=0, le=12)
+    total_sim_hours: float = Field(default=3.0, gt=0, le=24)
     dem_type: str = "COP30"
 
-    @field_validator("latitude", "longitude")
+    @field_validator("latitude")
     @classmethod
-    def _check_coords(cls, v):
+    def _check_lat(cls, v):
         validation.validate_coordinates(v, None)
+        return v
+
+    @field_validator("longitude")
+    @classmethod
+    def _check_lon(cls, v):
+        validation.validate_coordinates(None, v)
         return v
 
     @field_validator("dam_id")
@@ -116,13 +122,22 @@ async def _run_pipeline(job_id: str, req: SimulateStartRequest):
         dam_lon = req.longitude
 
         # Resolve dam coordinates
+        dam_name = req.dam_name
+        dam_river = None
+        dam_state = None
+        dam_district = None
         if req.dam_id:
             dam = await run_in_threadpool(dem_fetcher.get_dam_by_id, req.dam_id)
             if dam:
                 dam_lat = dam["latitude"]
                 dam_lon = dam["longitude"]
-                if req.dam_name == "Demo Dam":
-                    req.dam_name = dam["name"]
+                if not req.dam_name or req.dam_name == "Demo Dam" or req.dam_name == "Dam":
+                    dam_name = dam["name"]
+                else:
+                    dam_name = req.dam_name
+                dam_river = dam.get("river")
+                dam_state = dam.get("state")
+                dam_district = dam.get("district")
 
         if dam_lat is None or dam_lon is None:
             job.update({"done": True, "error": "No coordinates available"})
@@ -130,17 +145,32 @@ async def _run_pipeline(job_id: str, req: SimulateStartRequest):
 
         # Step 1 — Download DEM
         job.update({"step": 0, "label": STEPS[0]})
-        tif_path = await run_in_threadpool(
-            dem_fetcher.fetch_dem_for_dam,
-            dam_lat, dam_lon, req.dem_type,
-        )
+        terrain_type = "opentopography"
+        try:
+            tif_path = await run_in_threadpool(
+                dem_fetcher.fetch_dem_for_dam,
+                dam_lat, dam_lon, req.dem_type,
+            )
 
-        # Step 2 — Load Terrain
-        job.update({"step": 1, "label": STEPS[1]})
-        dem, dx, dam_col, dem_bounds = await run_in_threadpool(
-            dem_utils.load_opentopography_dem,
-            str(tif_path), 80, 120,
-        )
+            # Step 2 — Load Terrain
+            job.update({"step": 1, "label": STEPS[1]})
+            dem, dx, dam_col, dem_bounds = await run_in_threadpool(
+                dem_utils.load_opentopography_dem,
+                str(tif_path), 80, 120,
+            )
+        except Exception as dem_err:
+            logger.warning("DEM acquisition failed (%s) — falling back to synthetic terrain", dem_err)
+            job.update({"step": 1, "label": "Using Terrain Fallback Model"})
+            terrain_type = "synthetic"
+            dx = 30.0
+            dam_col = 15
+            dem = dem_utils.make_synthetic_valley_dem(dam_x_index=dam_col)
+            dem_bounds = (
+                dam_lon - 0.20,
+                dam_lat - 0.18,
+                dam_lon + 0.20,
+                dam_lat + 0.18,
+            )
 
         # Step 3 — Generate Mesh
         job.update({"step": 2, "label": STEPS[2]})
@@ -171,9 +201,15 @@ async def _run_pipeline(job_id: str, req: SimulateStartRequest):
         village_impacts = build_village_impacts(result)
 
         response = {
-            "dam_name": req.dam_name,
-            "terrain_type": "opentopography",
-            "dem_type": req.dem_type,
+            "dam_name": dam_name,
+            "dam_id": req.dam_id,
+            "river": dam_river,
+            "state": dam_state,
+            "district": dam_district,
+            "manning_n": req.manning_n,
+            "total_sim_hours": req.total_sim_hours,
+            "terrain_type": terrain_type,
+            "dem_type": req.dem_type if terrain_type == "opentopography" else "synthetic",
             "failure_mode": req.failure_mode,
             "breach": {
                 "peak_outflow_cms": result.peak_outflow_cms,
@@ -198,10 +234,15 @@ async def _run_pipeline(job_id: str, req: SimulateStartRequest):
             "summary": result.summary,
             "snapshot_times_s": result.snapshot_times_s,
             "timesteps_hours": [t / 3600.0 for t in result.snapshot_times_s],
+            "timesteps_formatted": getattr(result, "timesteps_formatted", []),
             "depth_grids": result.depth_grids,
             "velocity_grids": result.velocity_grids,
+            "risk_grids": getattr(result, "risk_grids", None),
+            "arrival_grid": getattr(result, "arrival_grid", None),
+            "hydraulic_parameters": getattr(result, "hydraulic_parameters", None),
             "village_impacts": village_impacts,
             "flood_polygon": result.flood_polygon_geojson,
+            "frame_polygons": getattr(result, "frame_polygons", None),
             "simulation_timing_ms": result.simulation_time_ms,
             "dem_bounds": {
                 "west": dem_bounds[0], "south": dem_bounds[1],

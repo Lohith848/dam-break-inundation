@@ -7,6 +7,8 @@ httpx>=0.27.0
 python-dotenv>=1.0.0
 Pillow>=10.0.0
 groq>=0.13.0
+reportlab>=4.0.0
+matplotlib>=3.8.0
 # Optional: rasterio for proper GeoTIFF/CRS handling
 # Uncomment if prebuilt wheels are available for your Python version:
 # rasterio>=1.4.0

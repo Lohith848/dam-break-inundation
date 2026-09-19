@@ -1,8 +1,10 @@
-# System Architecture & Technical Specifications — SIH26161 (v2 Release)
+# System Architecture & Technical Specifications — SIH26161 (Map-First Release)
 
 ## Overview
 
-The **SIH26161 Dam Break Inundation Modeling Platform** is an integrated, high-performance geospatial hydrodynamic simulation suite for SIH 2026. It couples empirical dam breach equations (Froehlich 1995/2008) with a 2D diffusive-wave flood routing solver, real-time velocity grids, and a full-featured WebGL/GIS visualization stack.
+The **SIH26161 Dam Break Inundation Modeling Platform** is an integrated, high-performance geospatial hydrodynamic simulation suite for SIH 2026. It couples empirical dam breach equations (Froehlich 1995/2008) with a 2D diffusive-wave flood routing solver, real-time velocity grids, smooth topological polygon extraction, CWC/NDMA executive PDF report generation, and an enterprise Groq AI disaster copilot.
+
+> **Architecture Scope Note**: In the current production release, the platform operates in a **Map-First 2D GIS Architecture** using Leaflet GIS, raster contour extraction, and vector overlays. This ensures maximum stability, deterministic hydraulic accuracy, and instantaneous response across all devices. The **3D Dam Digital Twin** subsystem is actively documented and scheduled for an upcoming update (see [`docs/3D_IMPLEMENTATION_ROADMAP.md`](file:///c:/Users/Lohith%20G/Downloads/SIH_WINNING_PROJECT/dam-break-inundation/docs/3D_IMPLEMENTATION_ROADMAP.md)).
 
 ---
 
@@ -10,100 +12,73 @@ The **SIH26161 Dam Break Inundation Modeling Platform** is an integrated, high-p
 
 ```mermaid
 graph TD
-    Client[Web Frontend - HTML5/CSS/Vanilla JS] -->|HTTP / REST| API[FastAPI Backend]
+    Client[Web Frontend - Single Page App] -->|HTTP / REST| API[FastAPI Backend Server]
     Client -->|SSE Connection| SSE[Progress Streaming Engine]
-    Client -->|WebGL 3D| ThreeJS[Flood3DViewer - Three.js v0.186]
-    Client -->|Geospatial Map| Leaflet[2D GIS Map - Leaflet.js]
+    Client -->|2D Spatial GIS| Leaflet[2D Map Viewport - Leaflet.js]
+    Client -->|Bottom Floating Drawer| AICopilot[Groq AI Disaster Copilot]
 
     API --> Router[API Router and Controller]
     Router --> HydroEngine[2D Diffusive-Wave Routing Engine]
-    Router --> BreachEngine[Froehlich Breach Empirical Model v2]
-    Router --> OpenTopo[OpenTopography DEM Fetcher and Cache]
+    Router --> BreachEngine[Froehlich Breach Empirical Model]
+    Router --> OpenTopo[OpenTopography Copernicus DEM Fetcher]
     Router --> WeatherAPI[Open-Meteo Weather Service]
-    Router --> GroqAI[Groq LLM Risk Copilot]
-    Router --> PDFGen[FPDF2 Disaster Report Generator]
+    Router --> GroqAI[Groq LPU AI Risk Engine]
+    Router --> PDFGen[ReportLab 13-Section PDF Engine]
 
     HydroEngine --> DEM[GeoTIFF / COP30 30m DEM Tiles]
-    HydroEngine --> VelGrid[Real Velocity Grids - qx qy / h]
+    HydroEngine --> VelGrid[Real Velocity Grids - qx, qy / h]
+    HydroEngine --> PolygonEngine[Rasterio Shapes & Shapely Union]
 ```
 
 ---
 
 ## Subsystem Architecture
 
-### 1. Backend Service (backend/app/)
+### 1. Computational Backend Service (`backend/app/`)
 
 | Module | Responsibility |
 |---|---|
-| main.py | FastAPI app, CORS, routes, static mount, /simulate + /simulate/stream returning velocity_grids |
-| routing.py | 2D diffusive-wave solver; CFL-adaptive time-stepping; unit-discharge to velocity computation (return_velocities=True) |
-| flood.py | Simulation orchestration; downsampled velocity_grids snapshots; SimulationResult dataclass |
-| breach.py | Froehlich v2 — froehlich_breach_width_v2, breach_formation_time_v2, peak discharge for all 4 failure modes |
-| progress.py | SSE job queue; broadcasts velocity_grids in result payload |
-| dem_fetcher.py | OpenTopography COP30/SRTM fetch with disk cache |
-| weather.py | Live rainfall (mm/hr) from Open-Meteo |
-| compare.py | Side-by-side multi-scenario comparison |
+| `main.py` | FastAPI app, CORS, routes, static asset serving, `/simulate`, `/simulate/start`, `/report/pdf`, `/ai/chat` |
+| `flood.py` | Simulation orchestration, 2D hydrodynamic solver execution, smooth polygon contour generation, and result packaging |
+| `routing.py` | 2D diffusive-wave Saint-Venant solver; CFL-adaptive time-stepping; mass conservation limiter; unit discharge to velocity |
+| `breach.py` | Froehlich (1995/2008) & MacDonald empirical breach regressions; peak discharge $Q_p$, breach width $B$, and formation time $t_f$ |
+| `failure_modes.py` | Failure mode physics and kinetics (Piping, Overtopping, Structural Collapse, Earthquake) |
+| `report_engine.py` | Official 13-section CWC/NDMA government PDF generator with vector hydrograph charts |
+| `progress.py` | SSE job queue; broadcasts live percentage progress and stage status during computation |
+| `dem_fetcher.py` | OpenTopography Copernicus 30m / SRTM fetcher with local disk caching |
+| `weather.py` | Live precipitation intensity ($\text{mm/hr}$) from Open-Meteo |
+| `compare.py` | Multi-scenario side-by-side comparative breach analysis |
+| `ai/` | Groq client with fast inference, civil engineering system prompts, and structured Q&A |
 
-### 2. Frontend Web Client (frontend/)
+### 2. Frontend Web Client (`frontend/`)
 
 | File | Responsibility |
 |---|---|
-| index.html | Single-page layout: sidebar controls, stage with 3D viewport + 2D map, 9-camera toolbar, render mode switcher, heatmap legend, dashboard dock |
-| three_viewer.js (v5) | Flood3DViewer — terrain mesh, PBR water, Draco GLB dam model, 9 camera modes, 4 failure-mode VFX, depth/velocity heatmaps, village beacons, CSS2D labels, bloom/SSAO post-processing |
-| dashboard.js | SimulationDashboard — 8 real engineering metrics with provenance badges (live, derived, pending); frame-by-frame updates via bind(viewer) |
-| app.js | Application controller — search, simulation run, showResults(), setup3DToolbar(), updateHeatmapLegend(), terrain probe with velocity |
-| ai_panel.js | Groq AI Copilot drawer, chat, PDF export |
-| style.css | Dark glassmorphism design system; toolbar, heatmap legend, dashboard dock, metric grid, responsive breakpoints |
-| config/assets.js | Asset manifest — DAM_MODEL.filename, damModelURL() |
-| config/api.js | Centralised API base URL |
-
-### 3. Asset Structure (public/assets/)
-
-```
-public/assets/
-├── models/
-│   ├── dam/           dam_structure.glb  (Draco-compressed)
-│   ├── terrain/       [elevation meshes]
-│   ├── buildings/     [settlement footprints]
-│   ├── vegetation/    [instanced trees]
-│   ├── bridges/       [bridge geometry]
-│   └── debris/        [debris models]
-├── textures/
-│   ├── dam/           [PBR material maps]
-│   ├── terrain/       [satellite/rock/grass]
-│   ├── water/         [normal, foam, caustic]
-│   └── environment/   [sky, cloud, decal]
-├── hdri/              [environment lighting]
-├── icons/             [status, UI icons]
-├── fonts/             [Inter, JetBrains Mono]
-├── audio/             [optional ambience]
-└── shaders/           [custom GLSL]
-```
+| `index.html` | Semantic single-page layout: control sidebar, map viewport, layer toggles, timeline player, bottom copilot launcher |
+| `app.js` | Application state coordination, Leaflet GIS player, timeline animation ($0.5\times$ to $5\times$), smooth polygon wavefront overlay |
+| `ai_panel.js` | Floating bottom-corner Groq AI Copilot; non-blocking drawer; table & list rendering; pre- and post-simulation Q&A |
+| `style.css` | Enterprise GIS dark theme; glassmorphism cards; bottom copilot panel; responsive controls |
+| `config/api.js` | Centralized API base URL resolver (auto-detects port 8000 vs 5173) |
+| `vite.config.js` | Vite dev server and production bundler configuration |
 
 ---
 
 ## Hydrodynamic Data Pipeline
 
-1. **Input**: Dam selection -> failure mode -> reservoir volume -> Manning's n -> grid resolution
-2. **Breach Calc**: Froehlich v2 -> peak outflow Qp, breach width B, formation time tf
-3. **DEM Fetch**: OpenTopography COP30 raster -> NumPy grid
-4. **Routing**: 2D diffusive-wave; adaptive CFL <= 0.5; snapshots every N steps -> depth_grids + velocity_grids (m/s, real physical values, V = q/h)
-5. **Impact**: Max depth, inundated area km2, settlement arrival times, status triage
-6. **Visualization**: JSON payload -> 3D terrain + water mesh + depth/velocity heatmaps + 2D flood contour overlay
+1. **Input**: Dam selection -> Failure mode -> Reservoir volume -> Dam height -> Manning's $n$ -> Duration.
+2. **Breach Calc**: Empirical formulations calculate peak discharge $Q_p$, breach width $B$, and formation time $t_f$.
+3. **DEM Acquisition**: Copernicus 30m DEM fetched via OpenTopography or generated from regional terrain elevation models.
+4. **Hydrodynamic Routing**: 2D diffusive-wave equations solved with adaptive $\Delta t$ ($\text{CFL} \le 0.5$); returns `depth_grids` and `velocity_grids`.
+5. **Smooth Vector Polygons**: Contours extracted via `rasterio.features.shapes`, cleaned with `shapely.ops.unary_union`, smoothed, and simplified for 60 FPS rendering.
+6. **GIS Multi-Layer Rendering**: Interactive Leaflet layers for Depth, Flow Velocity, Hazard Risk ($D \times V$), and Arrival Time contours.
+7. **Decision-Support Reporting**: On-demand 13-section CWC/NDMA PDF report generation with high-resolution hydrograph plots.
 
 ---
 
-## Three.js 3D Viewer — Key Technical Specifications
+## Future 3D Digital Twin Architecture (Post-SIH Roadmap)
 
-| Feature | Implementation |
-|---|---|
-| Terrain | PlaneGeometry (nx x ny), vertex Y from DEM x exaggeration factor + realistic multi-band mountain textures |
-| Water Mesh | Shared PlaneGeometry with per-vertex colors driven by depth/velocity ramp |
-| Dam Model | Draco-compressed GLB via DRACOLoader + procedural weathered concrete fallback |
-| Depth Heatmap | 6-stop: Blue -> Cyan -> Green -> Yellow -> Orange -> Dark Red (0-8+ m) |
-| Velocity Heatmap | 5-stop: Blue -> Green -> Yellow -> Orange -> Red (0-5+ m/s) |
-| Camera Modes | Operational Views: Dam, Valley, Top (smooth tween transitions with focus on breach) |
-| Failure VFX | Overtopping sheet + progressive notch; Piping dust burst; Structural crack decal + debris; Earthquake shake + rapid collapse |
-| Post-processing | ACESFilmic tone mapping (0.70 exposure), restrained bloom (0.04), SSAOPass, OutputPass; calibrated for engineering clarity |
-| Settlement Beacons | CSS2DRenderer labels (Inter) + sphere markers colour-coded by depth status |
-
+The platform is designed to seamlessly integrate a WebGL 3D Digital Twin after the initial deployment:
+- **WebGL Viewport**: Three.js r160+ rendering procedural 3D terrain meshes from DEM elevation grids.
+- **Dynamic Water Shader**: GLSL vertex displacement driven directly by backend `depth_grids`.
+- **Structural Dam Models**: Draco-compressed GLB dam assets (`public/assets/master/scene.glb`).
+- **Full Roadmap**: Detailed specifications, LOD strategies, and camera controls are documented in [`docs/3D_IMPLEMENTATION_ROADMAP.md`](file:///c:/Users/Lohith%20G/Downloads/SIH_WINNING_PROJECT/dam-break-inundation/docs/3D_IMPLEMENTATION_ROADMAP.md).
