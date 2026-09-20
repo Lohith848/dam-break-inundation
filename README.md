@@ -3,8 +3,8 @@
 
 > **Smart India Hackathon — Problem Statement ID: SIH26161**  
 > **Target Authorities:** Central Water Commission (CWC), National Dam Safety Authority (NDMA / NDSA), State Disaster Management Authorities (SDMA / SDRF)  
-> **Operational Paradigm:** **100% Map-Based 2D GIS Simulation & Tactical Decision Support**  
-> **Status:** Production-Ready Hackathon Release.
+> **Operational Paradigm:** **100% Map-Based 2D GIS Simulation**  
+
 
 ---
 
