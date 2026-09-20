@@ -81,8 +81,22 @@ def load_dem(path: str) -> DEMInfo:
             # convert dx & dy to metric units (meters) so the hydrodynamic solver operates properly.
             if dx < 1.0:
                 mid_lat = (bounds.bottom + bounds.top) / 2.0
-                dx = dx * 111320.0 * float(np.cos(np.radians(mid_lat)))
-                dy = dy * 111320.0
+                mid_lon = (bounds.left + bounds.right) / 2.0
+                src_dx_deg = abs(float(src.transform.a))  # raw degree step (before conversion)
+                src_dy_deg = abs(float(src.transform.e))
+                try:
+                    from pyproj import Geod
+                    geod = Geod(ellps="WGS84")
+                    # Geodesic metre distance for one pixel in x and y directions
+                    _, _, dx = geod.inv(bounds.left, mid_lat, bounds.left + src_dx_deg, mid_lat)
+                    _, _, dy = geod.inv(mid_lon, bounds.bottom, mid_lon, bounds.bottom + src_dy_deg)
+                    dx = abs(dx)
+                    dy = abs(dy)
+                    logger.debug("pyproj geodesic dx=%.2fm dy=%.2fm at lat=%.4f", dx, dy, mid_lat)
+                except ImportError:
+                    # Flat-Earth fallback (accurate to ~0.1% for India latitudes)
+                    dx = src_dx_deg * 111320.0 * float(np.cos(np.radians(mid_lat)))
+                    dy = src_dy_deg * 111320.0
 
             elapsed_ms = ( __import__("time").time() - t0) * 1000
             logger.info("Loaded DEM via rasterio: %s (%dx%d, dx=%.1fm, CRS=%s, %.0fms)",

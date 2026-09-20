@@ -1,3 +1,4 @@
+
 """
 main.py
 -------
@@ -620,6 +621,9 @@ async def simulate(params: SimulateRequest):
         "village_impacts": village_impacts,
         "flood_polygon": result.flood_polygon_geojson,
         "frame_polygons": result.frame_polygons,
+        # Breach hydrograph Q(t) for live Chart.js chart
+        "hydrograph_times_min": getattr(result, "hydrograph_times_min", None),
+        "hydrograph_q_cms": getattr(result, "hydrograph_q_cms", None),
         "simulation_timing_ms": result.simulation_time_ms,
         "dem_bounds": {
             "west": dem_bounds[0],

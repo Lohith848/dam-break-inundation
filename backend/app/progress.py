@@ -243,6 +243,9 @@ async def _run_pipeline(job_id: str, req: SimulateStartRequest):
             "village_impacts": village_impacts,
             "flood_polygon": result.flood_polygon_geojson,
             "frame_polygons": getattr(result, "frame_polygons", None),
+            # Breach hydrograph Q(t) for live Chart.js chart
+            "hydrograph_times_min": getattr(result, "hydrograph_times_min", None),
+            "hydrograph_q_cms": getattr(result, "hydrograph_q_cms", None),
             "simulation_timing_ms": result.simulation_time_ms,
             "dem_bounds": {
                 "west": dem_bounds[0], "south": dem_bounds[1],

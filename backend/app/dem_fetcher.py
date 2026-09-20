@@ -298,15 +298,32 @@ def fetch_dem_tile(
 # 5. Dam Database Loader (from dam.geojson)
 # ---------------------------------------------------------------------------
 
-_DAM_GEOJSON_PATH = Path(__file__).resolve().parent.parent.parent / "datasets" / "dam" / "dam.geojson"
+def _resolve_dam_geojson_path() -> Path:
+    candidates = [
+        Path(__file__).resolve().parent.parent.parent / "datasets" / "dam" / "dam.geojson",
+        Path(__file__).resolve().parent.parent / "datasets" / "dam" / "dam.geojson",
+        Path.cwd() / "datasets" / "dam" / "dam.geojson",
+        Path.cwd() / "backend" / "datasets" / "dam" / "dam.geojson",
+        Path.cwd().parent / "datasets" / "dam" / "dam.geojson",
+    ]
+    for c in candidates:
+        try:
+            if c.is_file() and c.stat().st_size > 1000:
+                return c
+        except Exception:
+            pass
+    return candidates[0]
+
+_DAM_GEOJSON_PATH = _resolve_dam_geojson_path()
 
 
 def load_dam_list(max_dams: int = 500) -> List[Dict]:
     """
     Load dams from dam.geojson and return simplified list with parsed coordinates.
     """
-    if not _DAM_GEOJSON_PATH.exists():
-        logger.warning("Dam database not found: %s", _DAM_GEOJSON_PATH)
+    path = _resolve_dam_geojson_path()
+    if not path.exists():
+        logger.warning("Dam database not found: %s", path)
         return []
 
     t0 = time.time()

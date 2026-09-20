@@ -9,6 +9,8 @@ Pillow>=10.0.0
 groq>=0.13.0
 reportlab>=4.0.0
 matplotlib>=3.8.0
-# Optional: rasterio for proper GeoTIFF/CRS handling
-# Uncomment if prebuilt wheels are available for your Python version:
-# rasterio>=1.4.0
+# Geo-processing: proper GeoTIFF CRS handling, flood polygon tracing, geodesic dx
+rasterio>=1.4.0
+scipy>=1.13.0
+shapely>=2.0.0
+pyproj>=3.6.0

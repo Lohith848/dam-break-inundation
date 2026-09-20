@@ -235,6 +235,20 @@
           </button>
         </div>
       </div>
+
+      <!-- Live Hydrograph Chart (Chart.js) -->
+      <div class="hydrograph-card" id="hydrographCard" style="display:none;">
+        <div class="hydrograph-header">
+          <span class="hydrograph-title">Breach Hydrograph — Q(t)</span>
+          <span class="hydrograph-badge" id="hydrographBadge">m³/s</span>
+        </div>
+        <div class="hydrograph-canvas-wrap">
+          <canvas id="hydrographChart" height="130"></canvas>
+        </div>
+        <div class="hydrograph-footer">
+          <span class="hydrograph-meta" id="hydrographMeta">Time from breach (min)</span>
+        </div>
+      </div>
     </div>
 
     <!-- ── Error ──────────────────────────────────────────────────────── -->
@@ -473,6 +487,12 @@
   }
 }
 </script>
+
+<!-- Chart.js — Live breach hydrograph chart in simulation sidebar -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+
+<!-- lil-gui — Real-time parameter GUI panel (Three.js 3D toolbar) -->
+<script src="https://cdn.jsdelivr.net/npm/lil-gui@0.19.2/dist/lil-gui.umd.min.js"></script>
 
 <!-- Leaflet (non-module) -->
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>

@@ -32,6 +32,12 @@ try:
 except ImportError:
     RASTERIO_SHAPELY_AVAILABLE = False
 
+try:
+    from scipy.ndimage import label as _ndimage_label
+    SCIPY_AVAILABLE = True
+except ImportError:
+    SCIPY_AVAILABLE = False
+
 from . import breach as breach_mod
 from . import routing
 from .failure_modes import normalize_failure_mode
@@ -97,6 +103,10 @@ class SimulationResult:
     velocity_grids: Optional[List[List[List[float]]]] = None
     risk_grids: Optional[List[List[List[int]]]] = None
     arrival_grid: Optional[List[List[float]]] = None
+
+    # Breach hydrograph Q(t) — serialisable lists for the frontend chart
+    hydrograph_times_min: Optional[List[float]] = None
+    hydrograph_q_cms: Optional[List[float]] = None
 
     # Comprehensive SIH Hydraulic & Impact Metrics
     hydraulic_parameters: Optional[Dict] = None
@@ -340,6 +350,20 @@ def _extract_smooth_polygon(
         except Exception as e:
             logger.debug(f"Rasterio/shapely polygon extraction skipped: {e}")
 
+    # scipy middle tier: connected-component cleanup removes isolated dry islands
+    # then hand off to the pure-NumPy ribbon tracer.
+    if SCIPY_AVAILABLE:
+        try:
+            flooded = depth_grid > threshold_m
+            labeled, n_components = _ndimage_label(flooded)
+            if n_components > 1:
+                # Keep only the largest connected wet component
+                sizes = [(labeled == i).sum() for i in range(1, n_components + 1)]
+                largest = int(np.argmax(sizes)) + 1
+                depth_grid = np.where(labeled == largest, depth_grid, 0.0)
+        except Exception:
+            pass  # scipy cleanup failed — fall through to pure-NumPy
+
     # Pure NumPy fallback: guaranteed bowtie-free smooth ribbon contour
     return _extract_pure_numpy_polygon(depth_grid, bounds, threshold_m)
 
@@ -351,7 +375,13 @@ def generate_flood_polygon_geojson(
     bounds: Tuple[float, float, float, float],
     threshold_m: float = 0.08,
 ) -> Dict:
-    """Generate GeoJSON polygon from the peak flood inundation extent."""
+    """
+    Generate GeoJSON polygon from the peak flood inundation extent.
+
+    When shapely is available, also produces a MultiPolygon per depth band
+    (shallow / moderate / deep / critical) stored in 'depth_band_features'.
+    This handles complex flood extents with disconnected islands correctly.
+    """
     geom = _extract_smooth_polygon(max_depth_grid, bounds, threshold_m, simplify_tol=0.0002)
     cell_area_km2 = (dx * dx) / 1e6
     flooded_cells = int(np.sum(max_depth_grid > threshold_m))
@@ -368,9 +398,43 @@ def generate_flood_polygon_geojson(
         "geometry": geom or {"type": "Polygon", "coordinates": []},
     }
 
+    # --- Depth-band MultiPolygon dissolve (shapely only) ---
+    depth_band_features = []
+    if RASTERIO_SHAPELY_AVAILABLE:
+        depth_bands = [
+            (threshold_m, 0.5, "shallow", "#26c6da"),
+            (0.5, 2.0, "moderate", "#2196f3"),
+            (2.0, 5.0, "deep", "#e65100"),
+            (5.0, 9999.0, "critical", "#d50000"),
+        ]
+        try:
+            west, south, east, north = bounds
+            ny, nx = max_depth_grid.shape
+            trans = rasterio.transform.from_bounds(west, south, east, north, nx, ny)
+            for lo, hi, band_name, color in depth_bands:
+                band_mask = ((max_depth_grid >= lo) & (max_depth_grid < hi)).astype(np.uint8)
+                if not band_mask.any():
+                    continue
+                shapes_gen = rasterio.features.shapes(band_mask, mask=band_mask, transform=trans)
+                geoms = [shapely.geometry.shape(g) for g, v in shapes_gen if v == 1]
+                if not geoms:
+                    continue
+                merged = shapely.ops.unary_union(geoms)
+                if merged.is_empty:
+                    continue
+                simplified = merged.simplify(0.0003, preserve_topology=True)
+                depth_band_features.append({
+                    "type": "Feature",
+                    "properties": {"band": band_name, "depth_lo_m": lo, "depth_hi_m": hi, "color": color},
+                    "geometry": shapely.geometry.mapping(simplified),
+                })
+        except Exception as e:
+            logger.debug("Depth-band dissolve skipped: %s", e)
+
     return {
         "type": "FeatureCollection",
         "features": [feature] if geom else [],
+        "depth_band_features": depth_band_features,
         "metadata": {
             "flooded_area_km2": round(flooded_area_km2, 3),
             "threshold_m": threshold_m,
@@ -613,6 +677,8 @@ def run_simulation(
         points_of_interest=points_of_interest,
         flood_polygon_geojson=flood_polygon,
         frame_polygons=frame_polygons,
+        hydrograph_times_min=hydro.get("hydrograph_times_min"),
+        hydrograph_q_cms=hydro.get("hydrograph_q_cms"),
         simulation_time_ms=round(total_time_ms, 1),
         terrain_time_ms=round(terrain_time_ms, 1),
     )

@@ -192,4 +192,8 @@ def build_breach_hydrograph(
         "unit_discharge_m2s": round(qp / max(b, 1.0), 2),
         "times_s": times,
         "discharge_cms": discharge,
+        # Serializable Q(t) time series for the frontend hydrograph chart.
+        # Sampled at every 60 s to keep payload small (max ~200 points).
+        "hydrograph_times_min": [round(t / 60.0, 2) for t in times[::6].tolist()],
+        "hydrograph_q_cms": [round(float(q), 2) for q in discharge[::6].tolist()],
     }

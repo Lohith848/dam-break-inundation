@@ -1932,3 +1932,119 @@ body.metrics-open #threeContainer { height: calc(100% - 56px); }
 .poi-status-high { background: var(--alert); box-shadow: 0 0 6px var(--alert); }
 .poi-status-moderate { background: var(--sonar); }
 .poi-status-low { background: var(--success); }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   LIVE HYDROGRAPH CHART (Chart.js)
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.hydrograph-card {
+  margin-top: var(--sp-3);
+  background: var(--surface-2);
+  border: 1px solid var(--border-1);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.hydrograph-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px 6px;
+  border-bottom: 1px solid var(--border-0);
+}
+
+.hydrograph-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-1);
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.hydrograph-badge {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--sonar);
+  background: var(--sonar-dim);
+  border: 1px solid rgba(74, 158, 255, 0.25);
+  padding: 1px 6px;
+  border-radius: 3px;
+}
+
+.hydrograph-canvas-wrap {
+  padding: 8px 10px 4px;
+  height: 130px;
+  position: relative;
+}
+
+.hydrograph-canvas-wrap canvas {
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
+}
+
+.hydrograph-footer {
+  padding: 4px 12px 8px;
+}
+
+.hydrograph-meta {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-3);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   LIL-GUI PANEL — Three.js 3D Toolbar Override
+   Positions the GUI in the top-right of the 3D viewport when activated.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.lil-gui {
+  --background-color: #1c2128;
+  --text-color: #b8c4d0;
+  --title-background-color: #242b35;
+  --title-text-color: #e8ecf0;
+  --widget-color: #2d3644;
+  --hover-color: #364050;
+  --focus-color: rgba(74, 158, 255, 0.25);
+  --number-color: #4a9eff;
+  --string-color: #34d399;
+  --font-size: 11px;
+  --font-family: 'JetBrains Mono', monospace;
+  --input-font-size: 11px;
+  --padding: 4px;
+  --spacing: 4px;
+  --widget-height: 22px;
+  --name-width: 45%;
+  --slider-input-width: 25%;
+  --color-input-width: 25%;
+  --slider-input-min-width: 45px;
+  --color-input-min-width: 45px;
+  --folder-indent: 7px;
+  --scrollbar-width: 3px;
+  --mobile-max-height: 300px;
+  --mobile-breakpoint: 400px;
+
+  /* Positioning inside the 3D viewport top-right */
+  position: absolute !important;
+  top: 8px !important;
+  right: 8px !important;
+  z-index: 30 !important;
+  max-height: 80vh;
+  overflow-y: auto;
+  border: 1px solid #2a3342;
+  border-radius: 6px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+  user-select: none;
+}
+
+.lil-gui .title {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  padding: 6px 10px;
+}
+
+/* Scrollbar for lil-gui overflow */
+.lil-gui::-webkit-scrollbar { width: 3px; }
+.lil-gui::-webkit-scrollbar-track { background: transparent; }
+.lil-gui::-webkit-scrollbar-thumb { background: #364050; border-radius: 3px; }

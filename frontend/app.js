@@ -1067,6 +1067,9 @@ function showResults(data, simTimeMs) {
   // Load simulation data into the Map Player
   initMapPlayer(data);
 
+  // Render live hydrograph chart
+  initHydrograph(data);
+
   // Trigger AI Copilot completion callback if loaded
   if (typeof window.onAISimulationComplete === "function") {
     window.onAISimulationComplete(data);
@@ -1257,6 +1260,9 @@ function renderMapFrame(frameIdx) {
   const timeLabel = mapPlayer.timestepsFormatted[frameIdx] || `${(frameIdx * 0.25).toFixed(2)}h`;
   document.getElementById("playerTimestamp").textContent = timeLabel;
   document.getElementById("playerFrameBadge").textContent = `Frame ${frameIdx + 1} / ${mapPlayer.totalFrames}`;
+
+  // Sync hydrograph scrubber to current playback frame
+  syncHydrographScrubber(frameIdx);
 
   // Update crisp GeoJSON flood boundary polygon
   if (floodPolygonLayer) {
@@ -1598,3 +1604,160 @@ function setDrawerStatus(state) {
 // Expose globally for HTML onclick handlers
 window.loadRivers = loadRivers;
 window.exportReport = exportReport;
+
+// ---------------------------------------------------------------------------
+// Live Hydrograph Chart (Chart.js)
+// ---------------------------------------------------------------------------
+let _hydrographChart = null;  // Chart.js instance
+let _hydrographSnapshotTimes = [];  // snapshot_times_s — for scrubber mapping
+
+/**
+ * Build or rebuild the Chart.js breach hydrograph.
+ * Called once per simulation from showResults().
+ *
+ * @param {object} data  Full simulation response from /simulate
+ */
+function initHydrograph(data) {
+  const card = document.getElementById("hydrographCard");
+  const canvas = document.getElementById("hydrographChart");
+  if (!card || !canvas) return;
+
+  // Guard: Chart.js must be loaded from CDN
+  if (typeof Chart === "undefined") {
+    console.warn("[Hydrograph] Chart.js not loaded — skipping hydrograph chart.");
+    return;
+  }
+
+  const times = data.hydrograph_times_min || [];
+  const q = data.hydrograph_q_cms || [];
+
+  if (!times.length || !q.length) {
+    card.style.display = "none";
+    return;
+  }
+
+  // Cache snapshot times for scrubber sync
+  _hydrographSnapshotTimes = (data.snapshot_times_s || []).map(t => t / 60.0);
+
+  // Destroy previous chart instance if re-running a simulation
+  if (_hydrographChart) {
+    _hydrographChart.destroy();
+    _hydrographChart = null;
+  }
+
+  const peakQ = Math.max(...q);
+  const peakMeta = document.getElementById("hydrographMeta");
+  if (peakMeta) {
+    const peakT = times[q.indexOf(peakQ)];
+    peakMeta.textContent =
+      `Peak ${Math.round(peakQ).toLocaleString()} m\u00b3/s at ${peakT?.toFixed(1)} min — Time from breach (min)`;
+  }
+
+  // Vertical scrubber annotation plugin (inline, no external plugin needed)
+  const scrubberPlugin = {
+    id: "hydrographScrubber",
+    afterDraw(chart) {
+      const scrubX = chart._scrubberX;
+      if (scrubX == null) return;
+      const { ctx, chartArea } = chart;
+      if (!chartArea) return;
+      ctx.save();
+      ctx.strokeStyle = "rgba(74, 158, 255, 0.9)";
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([3, 3]);
+      ctx.beginPath();
+      ctx.moveTo(scrubX, chartArea.top);
+      ctx.lineTo(scrubX, chartArea.bottom);
+      ctx.stroke();
+      ctx.restore();
+    },
+  };
+
+  const ctx = canvas.getContext("2d");
+  _hydrographChart = new Chart(ctx, {
+    type: "line",
+    plugins: [scrubberPlugin],
+    data: {
+      labels: times,
+      datasets: [{
+        label: "Breach Outflow Q(t)",
+        data: q,
+        borderColor: "#4a9eff",
+        backgroundColor: "rgba(74, 158, 255, 0.10)",
+        borderWidth: 1.5,
+        pointRadius: 0,
+        pointHoverRadius: 3,
+        fill: true,
+        tension: 0.35,
+      }],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: { duration: 400 },
+      interaction: { mode: "index", intersect: false },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: "#1c2128",
+          borderColor: "#2a3342",
+          borderWidth: 1,
+          titleColor: "#b8c4d0",
+          bodyColor: "#e8ecf0",
+          callbacks: {
+            title: (items) => `T = ${Number(items[0].label).toFixed(1)} min`,
+            label: (item) => `Q = ${Math.round(item.raw).toLocaleString()} m\u00b3/s`,
+          },
+        },
+      },
+      scales: {
+        x: {
+          type: "linear",
+          title: { display: false },
+          ticks: {
+            color: "#4f6078",
+            font: { size: 9, family: "'JetBrains Mono', monospace" },
+            maxTicksLimit: 8,
+            callback: (v) => `${v}m`,
+          },
+          grid: { color: "rgba(46, 56, 70, 0.6)", lineWidth: 0.5 },
+          border: { color: "#2a3342" },
+        },
+        y: {
+          title: { display: false },
+          ticks: {
+            color: "#4f6078",
+            font: { size: 9, family: "'JetBrains Mono', monospace" },
+            maxTicksLimit: 5,
+            callback: (v) => v >= 1000 ? `${(v / 1000).toFixed(1)}k` : v,
+          },
+          grid: { color: "rgba(46, 56, 70, 0.6)", lineWidth: 0.5 },
+          border: { color: "#2a3342" },
+        },
+      },
+    },
+  });
+
+  card.style.display = "block";
+}
+
+/**
+ * Move the vertical scrubber indicator on the hydrograph to the position
+ * corresponding to the current map player frame.
+ *
+ * @param {number} frameIdx  Current map player frame index
+ */
+function syncHydrographScrubber(frameIdx) {
+  if (!_hydrographChart) return;
+  const snapshotTimeMin = _hydrographSnapshotTimes[frameIdx];
+  if (snapshotTimeMin == null) return;
+
+  const chart = _hydrographChart;
+  const xScale = chart.scales.x;
+  if (!xScale) return;
+
+  // Convert sim time (min) to canvas pixel X
+  const xPixel = xScale.getPixelForValue(snapshotTimeMin);
+  chart._scrubberX = xPixel;
+  chart.draw();
+}
