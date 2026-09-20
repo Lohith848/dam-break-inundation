@@ -8,7 +8,7 @@
 
 ---
 
-## 🏛️ Executive Summary
+## Executive Summary
 
 Catastrophic dam breach incidents—whether triggered by extreme overtopping, internal piping erosion, foundation shear failure, or seismic events—release massive volumes of impounded water that travel downstream as high-velocity flood waves. In vulnerable river basins, emergency response commanders have mere minutes to predict wavefront arrival, identify severed evacuation arteries, and order staged evacuations of downstream human settlements.
 
@@ -16,13 +16,13 @@ Traditional hydraulic software packages (e.g., standard HEC-RAS 2D or MIKE 21 de
 
 This platform resolves this operational challenge by delivering an **automated, physics-grounded, web-based hydrodynamic platform** that executes full 2D flood routing over real digital topography in **under 2 seconds**. It combines empirical dam breach regressions (**Froehlich equations**), an explicit **2D diffusive-wave shallow water solver**, live catchment rainfall telemetry (**Open-Meteo**), an interactive **Leaflet satellite GIS viewport** with synchronized **Chart.js hydrograph scrubbing**, a zero-hallucination **Groq AI Disaster Copilot**, and automated **13-section official engineering PDF report export**.
 
-> ⚠️ **IMPORTANT NOTICE: OPERATIONAL FOCUS & 3D MODEL STATUS**  
+> **IMPORTANT NOTICE: OPERATIONAL FOCUS & 3D MODEL STATUS**  
 > To guarantee **deterministic hydraulic accuracy**, **sub-2-second compute time**, and **flawless performance on low-spec district disaster laptops**, the platform operates as a **100% Map-Based 2D GIS Simulation System**.  
 > The **Three.js 3D Dam Digital Twin / WebGL viewer is temporarily PAUSED** for the SIH evaluation. All 3D codebase modules (`frontend/three_viewer.js`, `frontend/viewer/*`), procedural meshes (`dam_model.js`), GLTF/GLB models (`public/assets/master/scene.glb`), and Draco WebAssembly decoders remain fully preserved in the repository and are scheduled for reactivation in a post-SIH update (see [`docs/3D_IMPLEMENTATION_ROADMAP.md`](file:///c:/Users/Lohith%20G/Downloads/SIH_WINNING_PROJECT/dam-break-inundation/docs/3D_IMPLEMENTATION_ROADMAP.md)).
 
 ---
 
-## 🚀 Key Engineering Capabilities
+## Key Engineering Capabilities
 
 ### 1. 2D Hydrodynamic Diffusive-Wave Simulation Engine
 - **Non-Linear Terrain Routing:** Solves the 2D diffusive-wave approximation of the de Saint-Venant shallow water equations across rasterized DEM grids.
@@ -68,7 +68,7 @@ This platform resolves this operational challenge by delivering an **automated, 
 
 ---
 
-## 🏗️ System Architecture
+## System Architecture
 
 ```mermaid
 graph TD
@@ -132,7 +132,7 @@ graph TD
 
 ---
 
-## 📐 Mathematical & Hydrodynamic Formulations
+## Mathematical & Hydrodynamic Formulations
 
 ### 1. Froehlich (1995 & 2008) Empirical Breach Regressions
 - **Peak Breach Outflow ($Q_p$):**
@@ -166,7 +166,7 @@ $$\text{Flux}_{a \to b} = q \cdot \Delta x \cdot \Delta t \quad (\text{m}^3)$$
 
 ---
 
-## 📁 Repository Structure
+## Repository Structure
 
 ```text
 dam-break-inundation/
@@ -235,7 +235,7 @@ dam-break-inundation/
 
 ---
 
-## ⚡ Quick Start & Installation
+## Quick Start & Installation
 
 ### Prerequisites
 - **Python:** 3.10, 3.11, or 3.12 installed
@@ -296,7 +296,7 @@ pytest tests/ -v
 
 ---
 
-## 📊 Summary of Technical Innovations
+## Summary of Technical Innovations
 
 | Engineering Dimension | Traditional Approach (HEC-RAS / MIKE) | Our Platform (SIH26161) | Operational Advantage |
 | :--- | :--- | :--- | :--- |
@@ -310,7 +310,7 @@ pytest tests/ -v
 
 ---
 
-## 📚 Technical Documentation Directory
+## Technical Documentation Directory
 
 For complete, exhaustive technical details, refer to our specialized engineering guides:
 
@@ -322,7 +322,7 @@ For complete, exhaustive technical details, refer to our specialized engineering
 
 ---
 
-## 📜 License & Attribution
+## License & Attribution
 
 Developed for **Smart India Hackathon (SIH)** under Problem Statement **SIH26161**.  
 Geospatial datasets attributed to Central Water Commission (CWC), National Dam Safety Authority (NDSA), OpenTopography, NASA SRTM, ESA Copernicus, HydroSHEDS (WWF), and Open-Meteo.
