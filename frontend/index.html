@@ -8,9 +8,8 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <link rel="stylesheet" href="style.css" />
   <script>
-    // Deployment override: set window.__API_BASE__ = "https://your-api" in a
-    // later inline script (or before app.js loads) to point at a remote API.
-    // Left unset, config/api.js auto-resolves same-origin → localhost:8000.
+    // Optional deployment override. Leave unset for the Vite proxy or same-origin API.
+    // For a separately hosted frontend, set this to the deployed FastAPI URL.
     window.__API_BASE__ = window.__API_BASE__ || null;
   </script>
 </head>
@@ -103,7 +102,6 @@
 
       <div class="field-group">
         <label class="field-label" for="failureMode">Failure Mode</label>
-        <!-- Options populated from /failure-modes (see app.js setupFailureModes) -->
         <select id="failureMode" class="field-input"></select>
         <span class="field-hint" id="failureModeHint">Loading failure modes…</span>
       </div>
@@ -128,380 +126,46 @@
         <div class="field-error" id="errSimHours"></div>
       </div>
 
-      <!-- ── Advanced Settings (collapsed) ──────────────────────────── -->
       <button class="advanced-toggle" id="advancedToggle" type="button">
         <svg class="advanced-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
         Advanced Settings
       </button>
 
       <div class="advanced-panel" id="advancedPanel">
-
         <div class="field-group">
-          <div class="field-label-row">
-            <label class="field-label" for="rainfall">Rainfall Intensity</label>
-            <button class="live-badge" id="liveRainfallBtn" title="Fetch live rainfall from Open-Meteo" style="display:none">
-              <span class="live-dot"></span> Live
-            </button>
-          </div>
+          <div class="field-label-row"><label class="field-label" for="rainfall">Rainfall Intensity</label><button class="live-badge" id="liveRainfallBtn" title="Fetch live rainfall from Open-Meteo" style="display:none"><span class="live-dot"></span> Live</button></div>
           <input id="rainfall" class="field-input" type="number" value="0" min="0" max="200" step="5" placeholder="0" />
           <span class="field-hint" id="rainfallHint">Additional rainfall during simulation (mm/hr)</span>
           <div class="field-error" id="errRainfall"></div>
         </div>
-
-        <div class="field-group">
-          <label class="field-label" for="manningN">Surface Roughness</label>
-          <input id="manningN" class="field-input" type="number" value="0.045" min="0.01" max="0.2" step="0.005" placeholder="0.045" />
-          <span class="field-hint">Manning's coefficient — leave default for most cases</span>
-        </div>
-
-        <div class="field-group">
-          <label class="field-label" for="breachWidth">Breach Width</label>
-          <input id="breachWidth" class="field-input" type="number" value="" step="1" min="1" placeholder="Leave empty to calculate automatically" />
-          <span class="field-hint">Override breach width (m) — calculated from dam height if empty</span>
-          <div class="field-error" id="errBreachWidth"></div>
-        </div>
-
-        <div class="field-group">
-          <label class="field-label" for="breachTime">Breach Formation Time</label>
-          <input id="breachTime" class="field-input" type="number" value="" step="1" min="1" placeholder="Leave empty to calculate automatically" />
-          <span class="field-hint">Time for breach to fully form (min) — estimated if empty</span>
-          <div class="field-error" id="errBreachTime"></div>
-        </div>
-
-        <div class="field-row-2">
-          <div class="field-group">
-            <label class="field-label" for="timeStep">Time Step</label>
-            <input id="timeStep" class="field-input" type="number" value="2" min="0.5" max="10" step="0.5" placeholder="2" />
-            <span class="field-hint">Solver timestep (s)</span>
-          </div>
-          <div class="field-group">
-            <label class="field-label" for="gridRes">Terrain Resolution</label>
-            <input id="gridRes" class="field-input" type="number" value="30" min="10" max="100" step="10" placeholder="30" />
-            <span class="field-hint">DEM grid cell size (m)</span>
-          </div>
-        </div>
-
+        <div class="field-group"><label class="field-label" for="manningN">Surface Roughness</label><input id="manningN" class="field-input" type="number" value="0.045" min="0.01" max="0.2" step="0.005" placeholder="0.045" /><span class="field-hint">Manning's coefficient — leave default for most cases</span></div>
+        <div class="field-group"><label class="field-label" for="breachWidth">Breach Width</label><input id="breachWidth" class="field-input" type="number" value="" step="1" min="1" placeholder="Leave empty to calculate automatically" /><span class="field-hint">Override breach width (m) — calculated from dam height if empty</span><div class="field-error" id="errBreachWidth"></div></div>
+        <div class="field-group"><label class="field-label" for="breachTime">Breach Formation Time</label><input id="breachTime" class="field-input" type="number" value="" step="1" min="1" placeholder="Leave empty to calculate automatically" /><span class="field-hint">Time for breach to fully form (min) — estimated if empty</span><div class="field-error" id="errBreachTime"></div></div>
+        <div class="field-row-2"><div class="field-group"><label class="field-label" for="timeStep">Time Step</label><input id="timeStep" class="field-input" type="number" value="2" min="0.5" max="10" step="0.5" placeholder="2" /><span class="field-hint">Solver timestep (s)</span></div><div class="field-group"><label class="field-label" for="gridRes">Terrain Resolution</label><input id="gridRes" class="field-input" type="number" value="30" min="10" max="100" step="10" placeholder="30" /><span class="field-hint">DEM grid cell size (m)</span></div></div>
       </div>
 
-      <button id="runBtn" class="run-btn" disabled>
-        <span class="run-btn-text">Run Simulation</span>
-      </button>
+      <button id="runBtn" class="run-btn" disabled><span class="run-btn-text">Run Simulation</span></button>
       <div id="validationMsg" class="validation-msg"></div>
     </div>
 
-    <!-- ── Progress ───────────────────────────────────────────────────── -->
-    <div class="sidebar-section" id="progressSection" style="display:none">
-      <div class="progress-card">
-        <div class="progress-head">
-          <span class="progress-title">Running Simulation</span>
-          <span class="progress-elapsed" id="progElapsed">0.0 s</span>
-        </div>
-        <div class="progress-bar-track">
-          <div class="progress-bar-fill" id="progressBar" style="width:0%"></div>
-        </div>
-        <div class="progress-status">
-          <span id="progStepLabel">Preparing...</span>
-          <span id="progRemaining"></span>
-        </div>
+    <div class="sidebar-section" id="progressSection" style="display:none"><div class="progress-card"><div class="progress-head"><span class="progress-title">Running Simulation</span><span class="progress-elapsed" id="progElapsed">0.0 s</span></div><div class="progress-bar-track"><div class="progress-bar-fill" id="progressBar" style="width:0%"></div></div><div class="progress-status"><span id="progStepLabel">Preparing...</span><span id="progRemaining"></span></div><button class="progress-details-toggle" id="progDetailsToggle" type="button">Details</button><div class="progress-steps" id="progressSteps" style="display:none"></div></div></div>
+    <div class="sidebar-section" id="resultsSection" style="display:none"><div class="results-card"><div class="results-grid"><div class="result-item"><span class="r-label">Status</span><span class="r-value r-ok" id="rStatus">Completed</span></div><div class="result-item"><span class="r-label">Sim Time</span><span class="r-value" id="rSimTime">—</span></div><div class="result-item"><span class="r-label">Peak Flow</span><span class="r-value" id="rPeakFlow">—</span></div><div class="result-item"><span class="r-label">Flood Area</span><span class="r-value" id="rFloodArea">—</span></div><div class="result-item"><span class="r-label">Max Depth</span><span class="r-value" id="rMaxDepth">—</span></div><div class="result-item"><span class="r-label">AI Ready</span><span class="r-value" id="rAiReady">—</span></div></div><div class="results-actions"><button class="btn btn-secondary" id="exportReportBtn" style="display:none">Export Report</button><button class="btn btn-secondary" id="compareBtn" style="display:none">Compare Scenarios</button></div></div><div class="hydrograph-card" id="hydrographCard" style="display:none;"><div class="hydrograph-header"><span class="hydrograph-title">Breach Hydrograph — Q(t)</span><span class="hydrograph-badge" id="hydrographBadge">m³/s</span></div><div class="hydrograph-canvas-wrap"><canvas id="hydrographChart" height="130"></canvas></div><div class="hydrograph-footer"><span class="hydrograph-meta" id="hydrographMeta">Time from breach (min)</span></div></div></div>
+    <div class="sidebar-section" id="errorSection" style="display:none"><div class="error-card"><div class="error-message" id="errorMessage"></div><div class="error-actions"><button class="error-btn" id="retryBtn">Retry</button><button class="error-btn error-btn-secondary" id="copyErrorBtn">Copy Error</button></div></div></div>
 
-        <!-- Expandable step details -->
-        <button class="progress-details-toggle" id="progDetailsToggle" type="button">
-          <svg class="advanced-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
-          Details
-        </button>
-        <div class="progress-steps" id="progressSteps" style="display:none"></div>
-      </div>
     </div>
-
-    <!-- ── Results ────────────────────────────────────────────────────── -->
-    <div class="sidebar-section" id="resultsSection" style="display:none">
-      <div class="results-card">
-        <div class="results-grid">
-          <div class="result-item"><span class="r-label">Status</span><span class="r-value r-ok" id="rStatus">Completed</span></div>
-          <div class="result-item"><span class="r-label">Sim Time</span><span class="r-value" id="rSimTime">—</span></div>
-          <div class="result-item"><span class="r-label">Peak Flow</span><span class="r-value" id="rPeakFlow">—</span></div>
-          <div class="result-item"><span class="r-label">Flood Area</span><span class="r-value" id="rFloodArea">—</span></div>
-          <div class="result-item"><span class="r-label">Max Depth</span><span class="r-value" id="rMaxDepth">—</span></div>
-          <div class="result-item"><span class="r-label">AI Ready</span><span class="r-value" id="rAiReady">—</span></div>
-        </div>
-        <div class="results-actions">
-          <button class="btn btn-secondary" id="exportReportBtn" style="display:none">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-            Export Report
-          </button>
-          <button class="btn btn-secondary" id="compareBtn" style="display:none">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 3h5v5"/><path d="M8 3H3v5"/><path d="M12 22V8"/><path d="m21 3-9 9"/><path d="M3 3l9 9"/></svg>
-            Compare Scenarios
-          </button>
-        </div>
-      </div>
-
-      <!-- Live Hydrograph Chart (Chart.js) -->
-      <div class="hydrograph-card" id="hydrographCard" style="display:none;">
-        <div class="hydrograph-header">
-          <span class="hydrograph-title">Breach Hydrograph — Q(t)</span>
-          <span class="hydrograph-badge" id="hydrographBadge">m³/s</span>
-        </div>
-        <div class="hydrograph-canvas-wrap">
-          <canvas id="hydrographChart" height="130"></canvas>
-        </div>
-        <div class="hydrograph-footer">
-          <span class="hydrograph-meta" id="hydrographMeta">Time from breach (min)</span>
-        </div>
-      </div>
-    </div>
-
-    <!-- ── Error ──────────────────────────────────────────────────────── -->
-    <div class="sidebar-section" id="errorSection" style="display:none">
-      <div class="error-card">
-        <div class="error-message" id="errorMessage"></div>
-        <div class="error-actions">
-          <button class="error-btn" id="retryBtn">Retry</button>
-          <button class="error-btn error-btn-secondary" id="copyErrorBtn">Copy Error</button>
-        </div>
-      </div>
-    </div>
-
-    </div><!-- /sidebar-scroll -->
-
   </aside>
-
-  <!-- Sidebar resize handle (drag to set width, 320–450px) -->
   <div class="sidebar-resizer" id="sidebarResizer" title="Drag to resize"></div>
-
-  <main class="stage">
-    <button class="sidebar-expand-btn" id="sidebarExpandBtn" title="Show panel (Ctrl+B)" aria-label="Show control panel">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
-    </button>
-    <div id="threeViewport" class="viewport-canvas hidden-viewport" style="display:none;">
-      <!-- 3D Viewport paused for SIH Map-Based requirements -->
-      <div id="threeContainer" class="canvas-anchor"></div>
-      <div class="heatmap-legend" id="heatmapLegend" style="display:none"></div>
-      <div class="metrics-drawer" id="metricsDrawer"></div>
-      <div class="probe-card" id="probeCard"><span id="probeText"></span></div>
-    </div>
-
-    <div id="leafletViewport" class="viewport-canvas active-viewport">
-      <div id="map" class="map-anchor"></div>
-
-      <!-- Floating GIS Map Toolbar: Layer Switching (Strictly NO emojis) -->
-      <div class="gis-map-toolbar" id="gisMapToolbar">
-        <div class="gis-toolbar-group">
-          <span class="gis-toolbar-title">Analysis Layer</span>
-          <div class="gis-btn-group" id="layerBtnGroup">
-            <button type="button" class="gis-layer-btn active" data-layer="depth" id="layerDepth">Flood Depth</button>
-            <button type="button" class="gis-layer-btn" data-layer="velocity" id="layerVelocity">Flow Velocity</button>
-            <button type="button" class="gis-layer-btn" data-layer="arrival" id="layerArrival">Arrival Time</button>
-            <button type="button" class="gis-layer-btn" data-layer="risk" id="layerRisk">Hazard Zones</button>
-          </div>
-        </div>
-      </div>
-
-      <!-- Live Point Probe HUD (Cursor Inspection) -->
-      <div class="gis-probe-hud" id="gisProbeHud" style="display:none;">
-        <div class="gis-probe-header">
-          <span class="gis-probe-dot"></span>
-          <span class="gis-probe-title">Point Inspection</span>
-        </div>
-        <div class="gis-probe-metrics">
-          <div class="probe-metric"><span class="pm-lbl">Depth:</span> <span class="pm-val" id="probeDepthVal">0.0 m</span></div>
-          <div class="probe-metric"><span class="pm-lbl">Velocity:</span> <span class="pm-val" id="probeVelVal">0.0 m/s</span></div>
-          <div class="probe-metric"><span class="pm-lbl">Risk:</span> <span class="pm-val" id="probeRiskVal">None</span></div>
-          <div class="probe-metric"><span class="pm-lbl">Arrival:</span> <span class="pm-val" id="probeArrivalVal">—</span></div>
-          <div class="probe-metric"><span class="pm-lbl">Coords:</span> <span class="pm-val pm-coords" id="probeCoordsVal">—</span></div>
-        </div>
-      </div>
-
-      <!-- Floating Map Simulation Player HUD (Strictly NO emojis) -->
-      <div class="gis-player-hud" id="gisPlayerHud" style="display:none;">
-        <div class="player-top-row">
-          <div class="player-controls">
-            <button type="button" class="player-btn" id="playerPrevBtn" title="Previous Timestep">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="19 20 9 12 19 4 19 20"/><line x1="5" y1="19" x2="5" y2="5"/></svg>
-            </button>
-            <button type="button" class="player-btn player-play-btn" id="playerPlayBtn" title="Play / Pause Simulation">
-              <svg id="playIcon" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
-              <svg id="pauseIcon" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="display:none;"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
-            </button>
-            <button type="button" class="player-btn" id="playerNextBtn" title="Next Timestep">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 4 15 12 5 20 5 4"/><line x1="19" y1="5" x2="19" y2="19"/></svg>
-            </button>
-          </div>
-
-          <div class="player-timeline-wrapper">
-            <input type="range" id="playerTimeline" class="player-timeline-slider" min="0" max="0" value="0" step="1" />
-          </div>
-
-          <div class="player-info">
-            <span class="player-timestamp" id="playerTimestamp">0:00</span>
-            <span class="player-frame-badge" id="playerFrameBadge">Frame 0 / 0</span>
-          </div>
-
-          <div class="player-speed-group">
-            <button type="button" class="speed-btn" data-speed="0.5">0.5x</button>
-            <button type="button" class="speed-btn active" data-speed="1">1x</button>
-            <button type="button" class="speed-btn" data-speed="2">2x</button>
-            <button type="button" class="speed-btn" data-speed="5">5x</button>
-          </div>
-        </div>
-      </div>
-
-      <!-- Heatmap Color Scale Legend for Active GIS Layer -->
-      <div class="gis-legend-card" id="gisLegendCard" style="display:none;">
-        <div class="gis-legend-title" id="gisLegendTitle">Flood Depth</div>
-        <div class="gis-legend-bar" id="gisLegendBar"></div>
-        <div class="gis-legend-labels" id="gisLegendLabels"></div>
-      </div>
-
-    </div>
-  </main>
+  <main class="stage"><button class="sidebar-expand-btn" id="sidebarExpandBtn" title="Show panel (Ctrl+B)" aria-label="Show control panel"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg></button><div id="threeViewport" class="viewport-canvas hidden-viewport" style="display:none;"><div id="threeContainer" class="canvas-anchor"></div><div class="heatmap-legend" id="heatmapLegend" style="display:none"></div><div class="metrics-drawer" id="metricsDrawer"></div><div class="probe-card" id="probeCard"><span id="probeText"></span></div></div><div id="leafletViewport" class="viewport-canvas active-viewport"><div id="map" class="map-anchor"></div><div class="gis-map-toolbar" id="gisMapToolbar"><div class="gis-toolbar-group"><span class="gis-toolbar-title">Analysis Layer</span><div class="gis-btn-group" id="layerBtnGroup"><button type="button" class="gis-layer-btn active" data-layer="depth" id="layerDepth">Flood Depth</button><button type="button" class="gis-layer-btn" data-layer="velocity" id="layerVelocity">Flow Velocity</button><button type="button" class="gis-layer-btn" data-layer="arrival" id="layerArrival">Arrival Time</button><button type="button" class="gis-layer-btn" data-layer="risk" id="layerRisk">Hazard Zones</button></div></div></div><div class="gis-probe-hud" id="gisProbeHud" style="display:none;"><div class="gis-probe-header"><span class="gis-probe-dot"></span><span class="gis-probe-title">Point Inspection</span></div><div class="gis-probe-metrics"><div class="probe-metric"><span class="pm-lbl">Depth:</span> <span class="pm-val" id="probeDepthVal">0.0 m</span></div><div class="probe-metric"><span class="pm-lbl">Velocity:</span> <span class="pm-val" id="probeVelVal">0.0 m/s</span></div><div class="probe-metric"><span class="pm-lbl">Risk:</span> <span class="pm-val" id="probeRiskVal">None</span></div><div class="probe-metric"><span class="pm-lbl">Arrival:</span> <span class="pm-val" id="probeArrivalVal">—</span></div><div class="probe-metric"><span class="pm-lbl">Coords:</span> <span class="pm-val pm-coords" id="probeCoordsVal">—</span></div></div></div><div class="gis-player-hud" id="gisPlayerHud" style="display:none;"><div class="player-top-row"><div class="player-controls"><button type="button" class="player-btn" id="playerPrevBtn" title="Previous Timestep">Previous</button><button type="button" class="player-btn player-play-btn" id="playerPlayBtn" title="Play / Pause Simulation"><span id="playIcon">Play</span><span id="pauseIcon" style="display:none;">Pause</span></button><button type="button" class="player-btn" id="playerNextBtn" title="Next Timestep">Next</button></div><div class="player-timeline-wrapper"><input type="range" id="playerTimeline" class="player-timeline-slider" min="0" max="0" value="0" step="1" /></div><div class="player-info"><span class="player-timestamp" id="playerTimestamp">0:00</span><span class="player-frame-badge" id="playerFrameBadge">Frame 0 / 0</span></div><div class="player-speed-group"><button type="button" class="speed-btn" data-speed="0.5">0.5x</button><button type="button" class="speed-btn active" data-speed="1">1x</button><button type="button" class="speed-btn" data-speed="2">2x</button><button type="button" class="speed-btn" data-speed="5">5x</button></div></div></div><div class="gis-legend-card" id="gisLegendCard" style="display:none;"><div class="gis-legend-title" id="gisLegendTitle">Flood Depth</div><div class="gis-legend-bar" id="gisLegendBar"></div><div class="gis-legend-labels" id="gisLegendLabels"></div></div></div></main>
 </div>
 
-<!-- SIH PDF Report Modal -->
-<div class="report-modal-overlay" id="reportModal" style="display:none;">
-  <div class="report-modal-card">
-    <div class="report-modal-header">
-      <div class="report-modal-title-group">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
-        <span>Dam Break Inundation Report</span>
-      </div>
-      <button type="button" class="report-modal-close" id="reportModalClose">&times;</button>
-    </div>
-    <div class="report-modal-body" id="reportModalBody">
-      <!-- Populated dynamically with SIH calculations -->
-    </div>
-    <div class="report-modal-footer">
-      <button type="button" class="btn btn-secondary" id="reportModalCloseBtn">Close</button>
-      <button type="button" class="btn btn-primary" id="reportModalDownloadBtn">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-        Download Official PDF Report (.pdf)
-      </button>
-    </div>
-  </div>
-</div>
-
-<!-- ── Bottom-Corner Engineering Copilot (Small Panel & Dam Icon at Bottom) ── -->
-<div class="copilot-widget" id="copilotWidget">
-  <!-- Small Bottom-Corner Panel (Compact 480px, NOT full height / long screen) -->
-  <aside class="copilot-small-panel" id="copilotPanel" style="display: none;" aria-label="Engineering Copilot">
-    <!-- Copilot Header -->
-    <div class="copilot-header">
-      <div class="copilot-title">
-        <svg class="dam-icon-sm" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M3 7h18l-2.5 13H5.5L3 7z"/>
-          <path d="M9 7v13"/>
-          <path d="M15 7v13"/>
-          <line x1="2" y1="7" x2="22" y2="7"/>
-        </svg>
-        <span>Engineering Copilot</span>
-        <span class="copilot-ai-badge" id="copilotAiBadge" title="Powered by Groq High-Speed LPU AI">Groq 120B</span>
-      </div>
-      <div class="copilot-header-actions">
-        <button type="button" class="copilot-btn-icon" id="copilotClearBtn" title="Reset Conversation">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/>
-          </svg>
-        </button>
-        <button type="button" class="copilot-btn-icon" id="copilotCloseBtn" title="Minimize Copilot">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-          </svg>
-        </button>
-      </div>
-    </div>
-
-    <!-- Essential Simulation Details by Default (Strictly Only These 5 Fields) -->
-    <div class="copilot-summary-block" id="copilotSummaryBlock">
-      <div class="copilot-summary-grid">
-        <div class="copilot-kv"><span class="copilot-k">Dam:</span> <span class="copilot-v" id="cpDam">USER SELECTED DAM</span></div>
-        <div class="copilot-kv"><span class="copilot-k">River:</span> <span class="copilot-v" id="cpRiver">USER SELECTED RIVER</span></div>
-        <div class="copilot-kv"><span class="copilot-k">Simulation:</span> <span class="copilot-v" id="cpStatus">STATUS</span></div>
-        <div class="copilot-kv"><span class="copilot-k">Failure Mode:</span> <span class="copilot-v" id="cpMode">USER SELECTED MODEL</span></div>
-        <div class="copilot-kv"><span class="copilot-k">Duration:</span> <span class="copilot-v" id="cpDuration">SIMULATION DURATION</span></div>
-      </div>
-    </div>
-
-    <!-- Compact Quick Actions (The 6 Specified Buttons) -->
-    <div class="copilot-actions">
-      <button type="button" class="copilot-action-btn" data-action="explain">Explain Simulation</button>
-      <button type="button" class="copilot-action-btn" data-action="risk">Flood Risk</button>
-      <button type="button" class="copilot-action-btn" data-action="details">Dam Details</button>
-      <button type="button" class="copilot-action-btn" data-action="evac">Evacuation</button>
-      <button type="button" class="copilot-action-btn" data-action="hydraulics">Hydraulic Results</button>
-      <button type="button" class="copilot-action-btn" data-action="summary">Generate Summary</button>
-    </div>
-
-    <!-- Conversation Stream (Primary Focus) -->
-    <div class="copilot-stream" id="copilotStream">
-      <div class="copilot-welcome-prompt" id="copilotWelcomePrompt">
-        Ask anything about this simulation...
-      </div>
-    </div>
-
-    <!-- Typing Indicator -->
-    <div class="copilot-typing" id="copilotTyping" style="display:none;">
-      <div class="copilot-typing-dots">
-        <span class="copilot-typing-dot"></span>
-        <span class="copilot-typing-dot"></span>
-        <span class="copilot-typing-dot"></span>
-      </div>
-      <span>Evaluating hydrodynamics...</span>
-    </div>
-
-    <!-- Fixed Input Box at Bottom -->
-    <div class="copilot-footer">
-      <form class="copilot-input-form" id="copilotForm">
-        <input type="text" class="copilot-input" id="copilotInput" placeholder="Ask anything about this simulation..." autocomplete="off" />
-        <button type="submit" class="copilot-send-btn" id="copilotSendBtn" title="Send question">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>
-          </svg>
-        </button>
-      </form>
-    </div>
-  </aside>
-
-  <!-- Dam Icon Trigger Button at Bottom Corner -->
-  <button class="copilot-bottom-trigger" id="copilotBottomTrigger" type="button" title="Engineering Copilot (Alt+C)" aria-label="Open Engineering Copilot">
-    <svg class="dam-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-      <path d="M3 7h18l-2.5 13H5.5L3 7z"/>
-      <path d="M9 7v13"/>
-      <path d="M15 7v13"/>
-      <line x1="2" y1="7" x2="22" y2="7"/>
-    </svg>
-    <span class="copilot-bottom-label">Copilot</span>
-  </button>
-</div>
-
-<!-- Global API Base Configuration -->
+<!-- Keep API configuration untouched. config/api.js selects the Vite proxy, same-origin API, or explicit override. -->
 <script>
-  window.__API_BASE__ = (window.location.protocol === 'http:' || window.location.protocol === 'https:') ? window.location.origin : 'http://localhost:8000';
+  window.__API_BASE__ = window.__API_BASE__ || null;
 </script>
-
-<!-- ES Module Import Map for Three.js -->
-<script type="importmap">
-{
-  "imports": {
-    "three": "./node_modules/three/build/three.module.js",
-    "three/addons/": "./node_modules/three/examples/jsm/"
-  }
-}
-</script>
-
-<!-- Chart.js — Live breach hydrograph chart in simulation sidebar -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
-
-<!-- lil-gui — Real-time parameter GUI panel (Three.js 3D toolbar) -->
 <script src="https://cdn.jsdelivr.net/npm/lil-gui@0.19.2/dist/lil-gui.umd.min.js"></script>
-
-<!-- Leaflet (non-module) -->
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-
-<!-- AI Panel (loads before app) -->
 <script type="module" src="ai_panel.js"></script>
-
-<!-- Main App (ES module — imports three_viewer.js) -->
 <script type="module" src="app.js"></script>
-
 </body>
 </html>
