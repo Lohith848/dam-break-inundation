@@ -1,7 +1,6 @@
 # Dam Break Inundation Modelling Using Hydrodynamic Modelling of any River
 ### Physically-Based 2D Hydrodynamic Flood Simulation, Real-Time GIS Mapping & Disaster Analytics
 
-> **Smart India Hackathon — Problem Statement ID: SIH26161**  
 > **Target Authorities:** Central Water Commission (CWC), National Dam Safety Authority (NDMA / NDSA), State Disaster Management Authorities (SDMA / SDRF)  
 > **Operational Paradigm:** **Map-Based 2D GIS Simulation**  
 
@@ -318,13 +317,12 @@ For complete, exhaustive technical details, refer to our specialized engineering
 2. **[API_REFERENCE.md](file:///c:/Users/Lohith%20G/Downloads/SIH_WINNING_PROJECT/dam-break-inundation/docs/API_REFERENCE.md)** — Complete OpenAPI specification for all REST endpoints and SSE streams.
 3. **[ARCHITECTURE.md](file:///c:/Users/Lohith%20G/Downloads/SIH_WINNING_PROJECT/dam-break-inundation/docs/ARCHITECTURE.md)** — Deep architectural specifications and data pipelines.
 4. **[HYDRODYNAMICS.md](file:///c:/Users/Lohith%20G/Downloads/SIH_WINNING_PROJECT/dam-break-inundation/docs/HYDRODYNAMICS.md)** — Mathematical proofs for 2D diffusive-wave shallow water equations.
-5. **[3D_IMPLEMENTATION_ROADMAP.md](file:///c:/Users/Lohith%20G/Downloads/SIH_WINNING_PROJECT/dam-break-inundation/docs/3D_IMPLEMENTATION_ROADMAP.md)** — Post-SIH 3D Dam Digital Twin & WebGL Reactivation Roadmap.
+5. **[3D_IMPLEMENTATION_ROADMAP.md](file:///c:/Users/Lohith%20G/Downloads/SIH_WINNING_PROJECT/dam-break-inundation/docs/3D_IMPLEMENTATION_ROADMAP.md)** — Post 3D Dam Digital Twin & WebGL Reactivation Roadmap.
 
 ---
 
 ## License & Attribution
-
-Developed for **Smart India Hackathon (SIH)** under Problem Statement **SIH26161**.  
+  
 Geospatial datasets attributed to Central Water Commission (CWC), National Dam Safety Authority (NDSA), OpenTopography, NASA SRTM, ESA Copernicus, HydroSHEDS (WWF), and Open-Meteo.
 
 ## Built With
