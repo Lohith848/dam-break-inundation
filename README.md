@@ -325,6 +325,8 @@ For complete, exhaustive technical details, refer to our specialized engineering
   
 Geospatial datasets attributed to Central Water Commission (CWC), National Dam Safety Authority (NDSA), OpenTopography, NASA SRTM, ESA Copernicus, HydroSHEDS (WWF), and Open-Meteo.
 
+---
+
 ## Built With
 
 A lot of caffeine, questionable sleep schedules, and **Lohith G**.
